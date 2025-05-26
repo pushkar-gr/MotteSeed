@@ -54,6 +54,18 @@ impl<'a> TrackerRequest<'a> {
         })
     }
 
+    pub fn update_uploaded(&mut self, uploaded: u64) {
+        self.uploaded = uploaded;
+    }
+
+    pub fn update_downloaded(&mut self, downloaded: u64) {
+        self.downloaded = downloaded;
+    }
+
+    pub fn update_left(&mut self, left: u64) {
+        self.left = left;
+    }
+
     //URL encodes a 20-byte value for use in tracker requests
     fn url_encode(bytes: &[u8; 20]) -> String {
         //pre-allocate capacity - worst case: all bytes need %XX encoding (3 chars each)
@@ -179,16 +191,17 @@ impl<'a> BencodeDecodable<'a> for TrackerResponse {
 
 //manages communication with a BitTorrent tracker
 #[derive(Debug)]
-pub struct Tracker {
-    last_request: Instant,         //time of last tracker request
-    response_bencode: Rc<Bencode>, //response bencode format
-    response: TrackerResponse,     //response by tracker
+pub struct Tracker<'a> {
+    pub request: &'a TrackerRequest<'a>, //request object
+    last_request: Instant,               //time of last tracker request
+    response_bencode: Rc<Bencode>,       //response bencode format
+    response: TrackerResponse,           //response by tracker
 }
 
-impl<'a> Tracker {
+impl<'a> Tracker<'a> {
     //create a new tracker and sends an initial request
-    pub async fn new(req: &TrackerRequest<'_>) -> Result<Self, TrackerError> {
-        let response_bencode = Self::send_request(req).await?;
+    pub async fn new(req: &'a TrackerRequest<'_>) -> Result<Self, TrackerError> {
+        let response_bencode = Self::send_req(req).await?;
 
         //extract the bencode and create a 'static reference
         //this is safe because we ensure the data lives as long as Tracker
@@ -198,14 +211,19 @@ impl<'a> Tracker {
         };
 
         Ok(Self {
+            request: req,
             last_request: Instant::now(),
             response_bencode,
             response: TrackerResponse::decode(&bencode_static)?,
         })
     }
 
+    async fn send_request(&self) -> Result<Rc<Bencode>, TrackerError> {
+        Self::send_req(self.request).await
+    }
+
     //send a request to the tracker and processes the response
-    async fn send_request(req: &TrackerRequest<'_>) -> Result<Rc<Bencode>, TrackerError> {
+    async fn send_req(req: &'a TrackerRequest<'a>) -> Result<Rc<Bencode>, TrackerError> {
         let url = req.build_url()?;
 
         //set up connection to tracker
@@ -245,13 +263,10 @@ impl<'a> Tracker {
     }
 
     //get peers from tracker, making a new request if needed
-    pub async fn get_peers(
-        &'a mut self,
-        req: &'a TrackerRequest<'a>,
-    ) -> Result<&'a Vec<Peer>, TrackerError> {
+    pub async fn get_peers(&'a mut self) -> Result<&'a Vec<Peer>, TrackerError> {
         //request again if interval has passed
         if self.last_request.elapsed().as_secs() > self.response.interval {
-            self.response_bencode = Self::send_request(req).await?;
+            self.response_bencode = self.send_request().await?;
             self.response = TrackerResponse::decode(self.response_bencode.as_ref())?;
             self.last_request = Instant::now();
         }

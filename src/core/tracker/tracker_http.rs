@@ -5,7 +5,7 @@ use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
 use crate::util::errors::BStreamingError;
 
 use bencode::{Bencode, from_buffer};
-use http::uri::PathAndQuery;
+use http::uri::{Parts, PathAndQuery};
 use http::{Request, Uri};
 use http_body_util::{BodyExt, Empty};
 use hyper::body::Bytes;
@@ -20,7 +20,7 @@ use tokio::net::TcpStream;
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
 pub struct AnnounceRequestHTTP<'a> {
-    tracker: &'a [u8],     //tracker URL as bytes
+    tracker: &'a str,      //tracker URL as str
     url_info_hash: String, //URL-encoded info hash
     url_peer_id: String,   //URL-encoded peer ID
     port: u16,             //port number for incoming connections
@@ -42,6 +42,10 @@ impl<'a> AnnounceRequestHTTP<'a> {
         left: u64,
         compact: bool,
     ) -> Result<Self, TrackerError> {
+        //convert uri from bytes to str
+        let tracker = std::str::from_utf8(tracker)
+            .map_err(|_| TrackerError::Other("Invalid UTF-8 in tracker URL".into()))?;
+
         Ok(Self {
             tracker,
             url_info_hash: Self::url_encode(info_hash),
@@ -71,8 +75,15 @@ impl<'a> AnnounceRequestHTTP<'a> {
 
     //URL encodes a 20-byte value for use in tracker requests
     fn url_encode(bytes: &[u8; 20]) -> String {
-        //pre-allocate capacity - worst case: all bytes need %XX encoding (3 chars each)
-        let mut result = String::with_capacity(bytes.len() * 3);
+        //count bytes that need encoding
+        let encoded_count = bytes
+            .iter()
+            .filter(|&&b| !(b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~')))
+            .count();
+
+        //allocate exact capacity needed
+        let capacity = bytes.len() + (encoded_count * 2);
+        let mut result = String::with_capacity(capacity);
 
         for &b in bytes {
             if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' || b == b'~' {
@@ -101,7 +112,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
         //buffer for int to str
         let mut buffer = itoa::Buffer::new();
 
-        let mut uri_parts = Uri::from_maybe_shared(self.tracker.to_vec())?.into_parts();
+        let mut uri_parts = self.tracker.parse::<Uri>()?.into_parts();
 
         let path = uri_parts
             .path_and_query
@@ -178,15 +189,20 @@ impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
             ));
         }
 
-        let peers = peers_bytes
-            .chunks_exact(6)
-            .map(|chunk| {
-                let peer_bytes: [u8; 6] = chunk
-                    .try_into()
-                    .map_err(|e: TryFromSliceError| BencodeDecodableError::Other(e.into()))?;
-                Peer::decode(&peer_bytes).map_err(|e| BencodeDecodableError::Other(e.into()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        //get number of peers
+        let peer_count = peers_bytes.len() / 6;
+        //pre-allocate with exact capacity
+        let mut peers = Vec::with_capacity(peer_count);
+
+        //process peers
+        for chunk in peers_bytes.chunks_exact(6) {
+            let peer_bytes: [u8; 6] = chunk
+                .try_into()
+                .map_err(|e: TryFromSliceError| BencodeDecodableError::Other(e.into()))?;
+            peers.push(
+                Peer::decode(&peer_bytes).map_err(|e| BencodeDecodableError::Other(e.into()))?,
+            );
+        }
 
         Ok(Self { interval, peers })
     }

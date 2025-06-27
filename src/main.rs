@@ -4,7 +4,7 @@ mod util;
 use core::peer_id::get_peer_id;
 use core::torrent::torrent::TorrentFile;
 
-use core::tracker::tracker::{Tracker, TrackerRequest};
+use core::tracker::tracker_http::{AnnounceRequestHTTP, TrackerHTTP};
 use std::env;
 use std::path::Path;
 
@@ -14,7 +14,7 @@ async fn main() {
     let file_path = args[1].clone();
     let torrent_file = TorrentFile::from_file(&Path::new(&file_path)).unwrap();
     let peer_id = &get_peer_id();
-    let tracker_request = TrackerRequest::new(
+    let tracker_request = AnnounceRequestHTTP::new(
         torrent_file.torrent.announce,
         &torrent_file.torrent.info_hash,
         peer_id,
@@ -25,6 +25,6 @@ async fn main() {
         true,
     )
     .unwrap();
-    let tracker = Tracker::new(&tracker_request).await.unwrap();
+    let tracker = TrackerHTTP::new(&tracker_request).await.unwrap();
     println!("{:?}", tracker);
 }

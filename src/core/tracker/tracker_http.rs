@@ -19,7 +19,7 @@ use tokio::net::TcpStream;
 
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
-pub struct TrackerRequest<'a> {
+pub struct AnnounceRequestHTTP<'a> {
     tracker: &'a [u8],     //tracker URL as bytes
     url_info_hash: String, //URL-encoded info hash
     url_peer_id: String,   //URL-encoded peer ID
@@ -30,7 +30,7 @@ pub struct TrackerRequest<'a> {
     compact: bool,         //whether to request compact peer list
 }
 
-impl<'a> TrackerRequest<'a> {
+impl<'a> AnnounceRequestHTTP<'a> {
     //create a new tracker request
     pub fn new(
         tracker: &'a [u8],
@@ -54,14 +54,17 @@ impl<'a> TrackerRequest<'a> {
         })
     }
 
+    //update uploaded in request
     pub fn update_uploaded(&mut self, uploaded: u64) {
         self.uploaded = uploaded;
     }
 
+    //update downloaded in request
     pub fn update_downloaded(&mut self, downloaded: u64) {
         self.downloaded = downloaded;
     }
 
+    //update left in request
     pub fn update_left(&mut self, left: u64) {
         self.left = left;
     }
@@ -150,12 +153,12 @@ impl<'a> TrackerRequest<'a> {
 
 //represents a reponse sent by a trakcer
 #[derive(Debug)]
-struct TrackerResponse {
+struct AnnounceResponseHTTP {
     interval: u64,    //seconds between tracker requests
     peers: Vec<Peer>, //list of peers received from tracker
 }
 
-impl<'a> BencodeDecodable<'a> for TrackerResponse {
+impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
     fn decode(b: &'a Bencode) -> Result<Self, BencodeDecodableError> {
         //get dict from bencode
         let dict = Self::get_struct(b)?;
@@ -191,16 +194,16 @@ impl<'a> BencodeDecodable<'a> for TrackerResponse {
 
 //manages communication with a BitTorrent tracker
 #[derive(Debug)]
-pub struct Tracker<'a> {
-    pub request: &'a TrackerRequest<'a>, //request object
-    last_request: Instant,               //time of last tracker request
-    response_bencode: Rc<Bencode>,       //response bencode format
-    response: TrackerResponse,           //response by tracker
+pub struct TrackerHTTP<'a> {
+    pub request: &'a AnnounceRequestHTTP<'a>, //request object
+    last_request: Instant,                    //time of last tracker request
+    response_bencode: Rc<Bencode>,            //response bencode format
+    response: AnnounceResponseHTTP,           //response by tracker
 }
 
-impl<'a> Tracker<'a> {
+impl<'a> TrackerHTTP<'a> {
     //create a new tracker and sends an initial request
-    pub async fn new(req: &'a TrackerRequest<'_>) -> Result<Self, TrackerError> {
+    pub async fn new(req: &'a AnnounceRequestHTTP<'_>) -> Result<Self, TrackerError> {
         let response_bencode = Self::send_req(req).await?;
 
         //extract the bencode and create a 'static reference
@@ -214,7 +217,7 @@ impl<'a> Tracker<'a> {
             request: req,
             last_request: Instant::now(),
             response_bencode,
-            response: TrackerResponse::decode(&bencode_static)?,
+            response: AnnounceResponseHTTP::decode(&bencode_static)?,
         })
     }
 
@@ -223,7 +226,7 @@ impl<'a> Tracker<'a> {
     }
 
     //send a request to the tracker and processes the response
-    async fn send_req(req: &'a TrackerRequest<'a>) -> Result<Rc<Bencode>, TrackerError> {
+    async fn send_req(req: &'a AnnounceRequestHTTP<'a>) -> Result<Rc<Bencode>, TrackerError> {
         let url = req.build_url()?;
 
         //set up connection to tracker
@@ -267,7 +270,7 @@ impl<'a> Tracker<'a> {
         //request again if interval has passed
         if self.last_request.elapsed().as_secs() > self.response.interval {
             self.response_bencode = self.send_request().await?;
-            self.response = TrackerResponse::decode(self.response_bencode.as_ref())?;
+            self.response = AnnounceResponseHTTP::decode(self.response_bencode.as_ref())?;
             self.last_request = Instant::now();
         }
         Ok(&self.response.peers)

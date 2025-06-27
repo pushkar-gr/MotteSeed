@@ -56,6 +56,29 @@ impl TrackerUDP {
     }
 }
 
+//represents connection response from a tracker
+struct ConnectionResponse {
+    action: u32,
+    transaction_id: u32,
+    connection_id: u64,
+}
+
+impl ConnectionResponse {
+    //convert bytes to ConnectionResponse
+    pub fn from_bytes(data: [u8; 16]) -> Self {
+        let action = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+        let transaction_id = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
+        let connection_id = u64::from_be_bytes([
+            data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15],
+        ]);
+        Self {
+            action,
+            transaction_id,
+            connection_id,
+        }
+    }
+}
+
 //get connection id for a tracker
 async fn get_connection_id(
     socket: &UdpSocket,
@@ -132,27 +155,4 @@ fn create_connect_request(transaction_id: u32) -> [u8; 16] {
     //transaction id
     buf[12..16].copy_from_slice(&transaction_id.to_be_bytes());
     buf
-}
-
-//represents connection response from a tracker
-struct ConnectionResponse {
-    action: u32,
-    transaction_id: u32,
-    connection_id: u64,
-}
-
-impl ConnectionResponse {
-    //convert bytes to ConnectionResponse
-    pub fn from_bytes(data: [u8; 16]) -> Self {
-        let action = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
-        let transaction_id = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
-        let connection_id = u64::from_be_bytes([
-            data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15],
-        ]);
-        Self {
-            action,
-            transaction_id,
-            connection_id,
-        }
-    }
 }

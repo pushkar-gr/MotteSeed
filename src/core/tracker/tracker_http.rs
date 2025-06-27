@@ -5,7 +5,7 @@ use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
 use crate::util::errors::BStreamingError;
 
 use bencode::{Bencode, from_buffer};
-use http::uri::{Parts, PathAndQuery};
+use http::uri::PathAndQuery;
 use http::{Request, Uri};
 use http_body_util::{BodyExt, Empty};
 use hyper::body::Bytes;
@@ -43,8 +43,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
         compact: bool,
     ) -> Result<Self, TrackerError> {
         //convert uri from bytes to str
-        let tracker = std::str::from_utf8(tracker)
-            .map_err(|_| TrackerError::Other("Invalid UTF-8 in tracker URL".into()))?;
+        let tracker = std::str::from_utf8(tracker)?;
 
         Ok(Self {
             tracker,

@@ -20,16 +20,28 @@ use tokio::net::TcpStream;
 //manages communication with a BitTorrent tracker
 #[derive(Debug)]
 pub struct TrackerHTTP<'a> {
-    pub request: &'a AnnounceRequestHTTP<'a>, //request object
-    last_request: Instant,                    //time of last tracker request
-    response_bencode: Rc<Bencode>,            //response bencode format
-    response: AnnounceResponseHTTP,           //response by tracker
+    request: AnnounceRequestHTTP<'a>, //request object
+    last_request: Instant,            //time of last tracker request
+    response_bencode: Rc<Bencode>,    //response bencode format
+    response: AnnounceResponseHTTP,   //response by tracker
 }
 
 impl<'a> TrackerHTTP<'a> {
     //create a new tracker and sends an initial request
-    pub async fn new(req: &'a AnnounceRequestHTTP<'_>) -> Result<Self, TrackerError> {
-        let response_bencode = send_request(req).await?;
+    pub async fn new(
+        tracker: &'a [u8],
+        info_hash: &'a [u8; 20],
+        peer_id: &'a [u8; 20],
+        port: u16,
+        uploaded: &'a u64,
+        downloaded: &'a u64,
+        left: &'a u64,
+        compact: bool,
+    ) -> Result<Self, TrackerError> {
+        let request = AnnounceRequestHTTP::new(
+            tracker, info_hash, peer_id, port, uploaded, downloaded, left, compact,
+        )?;
+        let response_bencode = send_request(&request).await?;
 
         //extract the bencode and create a 'static reference
         //this is safe because we ensure the data lives as long as Tracker
@@ -39,7 +51,7 @@ impl<'a> TrackerHTTP<'a> {
         };
 
         Ok(Self {
-            request: req,
+            request,
             last_request: Instant::now(),
             response_bencode,
             response: AnnounceResponseHTTP::decode(&bencode_static)?,
@@ -48,7 +60,7 @@ impl<'a> TrackerHTTP<'a> {
 
     //send a request to the tracker and processes the response
     async fn send_request(&self) -> Result<Rc<Bencode>, TrackerError> {
-        send_request(self.request).await
+        send_request(&self.request).await
     }
 
     //get peers from tracker, making a new request if needed
@@ -65,14 +77,14 @@ impl<'a> TrackerHTTP<'a> {
 
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
-pub struct AnnounceRequestHTTP<'a> {
+struct AnnounceRequestHTTP<'a> {
     tracker: &'a str,      //tracker URL as str
     url_info_hash: String, //URL-encoded info hash
     url_peer_id: String,   //URL-encoded peer ID
     port: u16,             //port number for incoming connections
-    uploaded: u64,         //total bytes uploaded
-    downloaded: u64,       //total bytes downloaded
-    left: u64,             //bytes left to download
+    uploaded: &'a u64,     //total bytes uploaded
+    downloaded: &'a u64,   //total bytes downloaded
+    left: &'a u64,         //bytes left to download
     compact: bool,         //whether to request compact peer list
 }
 
@@ -83,9 +95,9 @@ impl<'a> AnnounceRequestHTTP<'a> {
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
         port: u16,
-        uploaded: u64,
-        downloaded: u64,
-        left: u64,
+        uploaded: &'a u64,
+        downloaded: &'a u64,
+        left: &'a u64,
         compact: bool,
     ) -> Result<Self, TrackerError> {
         //convert uri from bytes to str
@@ -101,21 +113,6 @@ impl<'a> AnnounceRequestHTTP<'a> {
             left,
             compact,
         })
-    }
-
-    //update uploaded in request
-    pub fn update_uploaded(&mut self, uploaded: u64) {
-        self.uploaded = uploaded;
-    }
-
-    //update downloaded in request
-    pub fn update_downloaded(&mut self, downloaded: u64) {
-        self.downloaded = downloaded;
-    }
-
-    //update left in request
-    pub fn update_left(&mut self, left: u64) {
-        self.left = left;
     }
 
     //URL encodes a 20-byte value for use in tracker requests
@@ -190,13 +187,13 @@ impl<'a> AnnounceRequestHTTP<'a> {
         path_and_query.push_str(buffer.format(self.port));
 
         path_and_query.push_str("&uploaded=");
-        path_and_query.push_str(buffer.format(self.uploaded));
+        path_and_query.push_str(buffer.format(*self.uploaded));
 
         path_and_query.push_str("&downloaded=");
-        path_and_query.push_str(buffer.format(self.downloaded));
+        path_and_query.push_str(buffer.format(*self.downloaded));
 
         path_and_query.push_str("&left=");
-        path_and_query.push_str(buffer.format(self.left));
+        path_and_query.push_str(buffer.format(*self.left));
 
         path_and_query.push_str("&compact=");
         path_and_query.push(if self.compact { '1' } else { '0' });

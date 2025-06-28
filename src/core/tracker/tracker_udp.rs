@@ -11,6 +11,7 @@ const CONNECTION_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_RETRIES: usize = 3;
 
 //represents UDP tracker client
+#[derive(Debug)]
 pub struct TrackerUDP {
     socket: UdpSocket,
     server_addr: SocketAddr,

@@ -13,7 +13,6 @@ use hyper::client::conn::http1::handshake;
 use hyper_util::rt::TokioIo;
 use itoa;
 use std::array::TryFromSliceError;
-use std::rc::Rc;
 use std::time::Instant;
 use tokio::net::TcpStream;
 
@@ -22,7 +21,6 @@ use tokio::net::TcpStream;
 pub struct TrackerHTTP<'a> {
     request: AnnounceRequestHTTP<'a>, //request object
     last_request: Instant,            //time of last tracker request
-    response_bencode: Rc<Bencode>,    //response bencode format
     response: AnnounceResponseHTTP,   //response by tracker
 }
 
@@ -43,33 +41,26 @@ impl<'a> TrackerHTTP<'a> {
         )?;
         let response_bencode = send_request(&request).await?;
 
-        //extract the bencode and create a 'static reference
-        //this is safe because we ensure the data lives as long as Tracker
-        let bencode_static = unsafe {
-            let bencode_ref = response_bencode.as_ref();
-            std::mem::transmute::<&Bencode, &'a Bencode>(bencode_ref)
-        };
-
         Ok(Self {
             request,
             last_request: Instant::now(),
-            response_bencode,
-            response: AnnounceResponseHTTP::decode(&bencode_static)?,
+            response: AnnounceResponseHTTP::decode(&response_bencode)?,
         })
     }
 
     //send a request to the tracker and processes the response
-    async fn send_request(&self) -> Result<Rc<Bencode>, TrackerError> {
-        send_request(&self.request).await
+    async fn send_request(&mut self) -> Result<Bencode, TrackerError> {
+        let response = send_request(&self.request).await?;
+        self.last_request = Instant::now();
+        Ok(response)
     }
 
     //get peers from tracker, making a new request if needed
     pub async fn get_peers(&'a mut self) -> Result<&'a Vec<Peer>, TrackerError> {
         //request again if interval has passed
         if self.last_request.elapsed().as_secs() > self.response.interval {
-            self.response_bencode = self.send_request().await?;
-            self.response = AnnounceResponseHTTP::decode(self.response_bencode.as_ref())?;
-            self.last_request = Instant::now();
+            let response_bencode = self.send_request().await?;
+            self.response = AnnounceResponseHTTP::decode(&response_bencode)?;
         }
         Ok(&self.response.peers)
     }
@@ -251,7 +242,7 @@ impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
 }
 
 //send a request to the tracker and processes the response
-async fn send_request<'a>(req: &'a AnnounceRequestHTTP<'a>) -> Result<Rc<Bencode>, TrackerError> {
+async fn send_request<'a>(req: &'a AnnounceRequestHTTP<'a>) -> Result<Bencode, TrackerError> {
     let url = req.build_url()?;
 
     //set up connection to tracker
@@ -285,7 +276,7 @@ async fn send_request<'a>(req: &'a AnnounceRequestHTTP<'a>) -> Result<Rc<Bencode
     let body_bytes: &[u8] = &res.collect().await?.to_bytes();
 
     //create a place to store the bencode
-    let bencode_holder = Rc::new(from_buffer(body_bytes).map_err(BStreamingError::from)?);
+    let bencode_holder = from_buffer(body_bytes).map_err(BStreamingError::from)?;
 
     Ok(bencode_holder)
 }

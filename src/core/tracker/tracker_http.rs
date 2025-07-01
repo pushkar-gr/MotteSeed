@@ -20,7 +20,7 @@ use tokio::net::TcpStream;
 #[derive(Debug)]
 pub struct TrackerHTTP<'a> {
     request: AnnounceRequestHTTP<'a>, //request object
-    last_request: Instant,            //time of last tracker request
+    last_announce: Instant,            //time of last tracker request
     response: AnnounceResponseHTTP,   //response by tracker
 }
 
@@ -39,27 +39,27 @@ impl<'a> TrackerHTTP<'a> {
         let request = AnnounceRequestHTTP::new(
             tracker, info_hash, peer_id, port, uploaded, downloaded, left, compact,
         )?;
-        let response_bencode = send_request(&request).await?;
+        let response_bencode = announce(&request).await?;
 
         Ok(Self {
             request,
-            last_request: Instant::now(),
+            last_announce: Instant::now(),
             response: AnnounceResponseHTTP::decode(&response_bencode)?,
         })
     }
 
     //send a request to the tracker and processes the response
-    async fn send_request(&mut self) -> Result<Bencode, TrackerError> {
-        let response = send_request(&self.request).await?;
-        self.last_request = Instant::now();
+    async fn announce(&mut self) -> Result<Bencode, TrackerError> {
+        let response = announce(&self.request).await?;
+        self.last_announce = Instant::now();
         Ok(response)
     }
 
     //get peers from tracker, making a new request if needed
-    pub async fn get_peers(&'a mut self) -> Result<&'a Vec<Peer>, TrackerError> {
+    pub async fn get_peers(&mut self) -> Result<& Vec<Peer>, TrackerError> {
         //request again if interval has passed
-        if self.last_request.elapsed().as_secs() > self.response.interval {
-            let response_bencode = self.send_request().await?;
+        if self.last_announce.elapsed().as_secs() > self.response.interval {
+            let response_bencode = self.announce().await?;
             self.response = AnnounceResponseHTTP::decode(&response_bencode)?;
         }
         Ok(&self.response.peers)
@@ -242,7 +242,7 @@ impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
 }
 
 //send a request to the tracker and processes the response
-async fn send_request<'a>(req: &'a AnnounceRequestHTTP<'a>) -> Result<Bencode, TrackerError> {
+async fn announce<'a>(req: &'a AnnounceRequestHTTP<'a>) -> Result<Bencode, TrackerError> {
     let url = req.build_url()?;
 
     //set up connection to tracker

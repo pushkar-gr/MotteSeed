@@ -20,7 +20,7 @@ use tokio::net::TcpStream;
 #[derive(Debug)]
 pub struct TrackerHTTP<'a> {
     request: AnnounceRequestHTTP<'a>, //request object
-    last_announce: Instant,            //time of last tracker request
+    last_announce: Instant,           //time of last tracker request
     response: AnnounceResponseHTTP,   //response by tracker
 }
 
@@ -56,7 +56,7 @@ impl<'a> TrackerHTTP<'a> {
     }
 
     //get peers from tracker, making a new request if needed
-    pub async fn get_peers(&mut self) -> Result<& Vec<Peer>, TrackerError> {
+    pub async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
         //request again if interval has passed
         if self.last_announce.elapsed().as_secs() > self.response.interval {
             let response_bencode = self.announce().await?;

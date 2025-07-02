@@ -185,11 +185,11 @@ impl<'a> AnnounceRequestHTTP<'a> {
         path_and_query.push_str("&uploaded=");
         path_and_query.push_str(buffer.format(*uploaded));
 
-        let downloaded = self.uploaded.read().await;
+        let downloaded = self.downloaded.read().await;
         path_and_query.push_str("&downloaded=");
         path_and_query.push_str(buffer.format(*downloaded));
 
-        let left = self.uploaded.read().await;
+        let left = self.left.read().await;
         path_and_query.push_str("&left=");
         path_and_query.push_str(buffer.format(*left));
 

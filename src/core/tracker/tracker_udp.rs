@@ -110,7 +110,6 @@ impl<'a> Tracker<'a> for TrackerUDP<'a> {
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
 struct AnnounceRequestUDP<'a> {
-    action: u32,                  //1 for announce
     info_hash: &'a [u8; 20],      //SHA1 info hash
     peer_id: &'a [u8; 20],        //peer id of peer
     downloaded: Arc<RwLock<u64>>, //total bytes downloaded
@@ -134,7 +133,6 @@ impl<'a> AnnounceRequestUDP<'a> {
         port: u16,
     ) -> Self {
         Self {
-            action: 1,
             info_hash,
             peer_id,
             downloaded,

@@ -1,4 +1,5 @@
 use crate::core::peer::peer::Peer;
+use crate::core::tracker::tracker::Tracker;
 use crate::core::tracker::tracker_error::TrackerError;
 
 use rand;
@@ -27,9 +28,40 @@ pub struct TrackerUDP<'a> {
 impl<'a> TrackerUDP<'a> {
     const CONNECTION_EXPIRY: Duration = Duration::from_secs(120);
 
+    //get connection id
+    async fn get_connection_id(&mut self) -> Result<u64, TrackerError> {
+        //update connection id if expired
+        if self.connection_time.elapsed() >= Self::CONNECTION_EXPIRY {
+            self.refresh_connection().await?;
+        }
+        Ok(self.connection_id)
+    }
+
+    //refresh connection id
+    async fn refresh_connection(&mut self) -> Result<(), TrackerError> {
+        self.connection_id = get_connection_id(&self.socket, &self.server_addr).await?;
+        Ok(())
+    }
+
+    //send a request to the tracker and processes the response
+    async fn announce(&mut self) -> Result<AnnounceResponseUDP, TrackerError> {
+        let connection_id = self.get_connection_id().await?;
+        let announce_response = announce(
+            &self.server_addr,
+            &self.socket,
+            connection_id,
+            &self.announce_request,
+        )
+        .await?;
+        self.last_announce = Instant::now();
+        Ok(announce_response)
+    }
+}
+
+impl<'a> Tracker<'a> for TrackerUDP<'a> {
     //creates new TrackerUDP
-    pub async fn new(
-        announce_url: &[u8],
+    async fn new(
+        announce_url: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
         downloaded: &'a u64,
@@ -63,37 +95,8 @@ impl<'a> TrackerUDP<'a> {
         })
     }
 
-    //get connection id
-    async fn get_connection_id(&mut self) -> Result<u64, TrackerError> {
-        //update connection id if expired
-        if self.connection_time.elapsed() >= Self::CONNECTION_EXPIRY {
-            self.refresh_connection().await?;
-        }
-        Ok(self.connection_id)
-    }
-
-    //refresh connection id
-    async fn refresh_connection(&mut self) -> Result<(), TrackerError> {
-        self.connection_id = get_connection_id(&self.socket, &self.server_addr).await?;
-        Ok(())
-    }
-
-    //send a request to the tracker and processes the response
-    async fn announce(&mut self) -> Result<AnnounceResponseUDP, TrackerError> {
-        let connection_id = self.get_connection_id().await?;
-        let announce_response = announce(
-            &self.server_addr,
-            &self.socket,
-            connection_id,
-            &self.announce_request,
-        )
-        .await?;
-        self.last_announce = Instant::now();
-        Ok(announce_response)
-    }
-
     //get peers from tracker, making a new request if needed
-    pub async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
+    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
         //request again if interval has passed
         if self.last_announce.elapsed().as_secs() > self.announce_response.interval.into() {
             self.announce_response = self.announce().await?;

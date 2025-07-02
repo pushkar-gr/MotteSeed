@@ -1,4 +1,5 @@
 use crate::core::peer::peer::Peer;
+use crate::core::tracker::tracker::Tracker;
 use crate::core::tracker::tracker_error::TrackerError;
 use crate::util::bencode::bencode_decodable::BencodeDecodable;
 use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
@@ -25,19 +26,27 @@ pub struct TrackerHTTP<'a> {
 }
 
 impl<'a> TrackerHTTP<'a> {
+    //send a request to the tracker and processes the response
+    async fn announce(&mut self) -> Result<Bencode, TrackerError> {
+        let response = announce(&self.request).await?;
+        self.last_announce = Instant::now();
+        Ok(response)
+    }
+}
+
+impl<'a> Tracker<'a> for TrackerHTTP<'a> {
     //create a new tracker and sends an initial request
-    pub async fn new(
+    async fn new(
         tracker: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        port: u16,
-        uploaded: &'a u64,
         downloaded: &'a u64,
         left: &'a u64,
-        compact: bool,
+        uploaded: &'a u64,
+        port: u16,
     ) -> Result<Self, TrackerError> {
         let request = AnnounceRequestHTTP::new(
-            tracker, info_hash, peer_id, port, uploaded, downloaded, left, compact,
+            tracker, info_hash, peer_id, port, uploaded, downloaded, left, true,
         )?;
         let response_bencode = announce(&request).await?;
 
@@ -48,15 +57,8 @@ impl<'a> TrackerHTTP<'a> {
         })
     }
 
-    //send a request to the tracker and processes the response
-    async fn announce(&mut self) -> Result<Bencode, TrackerError> {
-        let response = announce(&self.request).await?;
-        self.last_announce = Instant::now();
-        Ok(response)
-    }
-
     //get peers from tracker, making a new request if needed
-    pub async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
+    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
         //request again if interval has passed
         if self.last_announce.elapsed().as_secs() > self.response.interval {
             let response_bencode = self.announce().await?;
@@ -65,7 +67,6 @@ impl<'a> TrackerHTTP<'a> {
         Ok(&self.response.peers)
     }
 }
-
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
 struct AnnounceRequestHTTP<'a> {

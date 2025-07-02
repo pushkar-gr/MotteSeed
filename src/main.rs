@@ -3,11 +3,11 @@ mod util;
 
 use core::peer_id::get_peer_id;
 use core::torrent::torrent::TorrentFile;
+use core::tracker::tracker::Tracker;
+use core::tracker::tracker_udp::TrackerUDP;
 
 use std::env;
 use std::path::Path;
-
-use crate::core::tracker::tracker_udp::TrackerUDP;
 
 #[tokio::main]
 async fn main() {

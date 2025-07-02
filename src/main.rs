@@ -1,7 +1,7 @@
 mod core;
 mod util;
 
-use core::peer_id::get_peer_id;
+use core::peer::peer_id::get_peer_id;
 use core::torrent::torrent::TorrentFile;
 use core::tracker::tracker::Tracker;
 use core::tracker::tracker_udp::TrackerUDP;

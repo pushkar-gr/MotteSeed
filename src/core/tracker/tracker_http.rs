@@ -14,8 +14,10 @@ use hyper::client::conn::http1::handshake;
 use hyper_util::rt::TokioIo;
 use itoa;
 use std::array::TryFromSliceError;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpStream;
+use tokio::sync::RwLock;
 
 //manages communication with a BitTorrent tracker
 #[derive(Debug)]
@@ -40,9 +42,9 @@ impl<'a> Tracker<'a> for TrackerHTTP<'a> {
         tracker: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        downloaded: &'a u64,
-        left: &'a u64,
-        uploaded: &'a u64,
+        downloaded: Arc<RwLock<u64>>,
+        left: Arc<RwLock<u64>>,
+        uploaded: Arc<RwLock<u64>>,
         port: u16,
     ) -> Result<Self, TrackerError> {
         let request = AnnounceRequestHTTP::new(
@@ -67,29 +69,30 @@ impl<'a> Tracker<'a> for TrackerHTTP<'a> {
         Ok(&self.response.peers)
     }
 }
+
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
 struct AnnounceRequestHTTP<'a> {
-    tracker: &'a str,      //tracker URL as str
-    url_info_hash: String, //URL-encoded info hash
-    url_peer_id: String,   //URL-encoded peer ID
-    port: u16,             //port number for incoming connections
-    uploaded: &'a u64,     //total bytes uploaded
-    downloaded: &'a u64,   //total bytes downloaded
-    left: &'a u64,         //bytes left to download
-    compact: bool,         //whether to request compact peer list
+    tracker: &'a str,             //tracker URL as str
+    url_info_hash: String,        //URL-encoded info hash
+    url_peer_id: String,          //URL-encoded peer ID
+    port: u16,                    //port number for incoming connections
+    uploaded: Arc<RwLock<u64>>,   //total bytes uploaded
+    downloaded: Arc<RwLock<u64>>, //total bytes downloaded
+    left: Arc<RwLock<u64>>,       //bytes left to download
+    compact: bool,                //whether to request compact peer list
 }
 
 impl<'a> AnnounceRequestHTTP<'a> {
     //create a new tracker request
-    pub fn new(
+    fn new(
         tracker: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
         port: u16,
-        uploaded: &'a u64,
-        downloaded: &'a u64,
-        left: &'a u64,
+        uploaded: Arc<RwLock<u64>>,
+        downloaded: Arc<RwLock<u64>>,
+        left: Arc<RwLock<u64>>,
         compact: bool,
     ) -> Result<Self, TrackerError> {
         //convert uri from bytes to str
@@ -142,7 +145,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
     }
 
     //build a complete tracker request URL with all required parameters
-    pub fn build_url(&'a self) -> Result<Uri, TrackerError> {
+    async fn build_url(&'a self) -> Result<Uri, TrackerError> {
         //buffer for int to str
         let mut buffer = itoa::Buffer::new();
 
@@ -178,14 +181,17 @@ impl<'a> AnnounceRequestHTTP<'a> {
         path_and_query.push_str("&port=");
         path_and_query.push_str(buffer.format(self.port));
 
+        let uploaded = self.uploaded.read().await;
         path_and_query.push_str("&uploaded=");
-        path_and_query.push_str(buffer.format(*self.uploaded));
+        path_and_query.push_str(buffer.format(*uploaded));
 
+        let downloaded = self.uploaded.read().await;
         path_and_query.push_str("&downloaded=");
-        path_and_query.push_str(buffer.format(*self.downloaded));
+        path_and_query.push_str(buffer.format(*downloaded));
 
+        let left = self.uploaded.read().await;
         path_and_query.push_str("&left=");
-        path_and_query.push_str(buffer.format(*self.left));
+        path_and_query.push_str(buffer.format(*left));
 
         path_and_query.push_str("&compact=");
         path_and_query.push(if self.compact { '1' } else { '0' });
@@ -244,7 +250,7 @@ impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
 
 //send a request to the tracker and processes the response
 async fn announce<'a>(req: &'a AnnounceRequestHTTP<'a>) -> Result<Bencode, TrackerError> {
-    let url = req.build_url()?;
+    let url = req.build_url().await?;
 
     //set up connection to tracker
     let host = url

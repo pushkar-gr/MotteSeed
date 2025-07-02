@@ -6,8 +6,10 @@ use rand;
 use std::array::TryFromSliceError;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;
+use tokio::sync::RwLock;
 use tokio::time::{Instant, timeout};
 
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(15);
@@ -64,9 +66,9 @@ impl<'a> Tracker<'a> for TrackerUDP<'a> {
         announce_url: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        downloaded: &'a u64,
-        left: &'a u64,
-        uploaded: &'a u64,
+        downloaded: Arc<RwLock<u64>>,
+        left: Arc<RwLock<u64>>,
+        uploaded: Arc<RwLock<u64>>,
         port: u16,
     ) -> Result<Self, TrackerError> {
         //parse announce url
@@ -108,27 +110,27 @@ impl<'a> Tracker<'a> for TrackerUDP<'a> {
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
 struct AnnounceRequestUDP<'a> {
-    action: u32,             //1 for announce
-    info_hash: &'a [u8; 20], //SHA1 info hash
-    peer_id: &'a [u8; 20],   //peer id of peer
-    downloaded: &'a u64,     //total bytes downloaded
-    left: &'a u64,           //bytes left to download
-    uploaded: &'a u64,       //total bytes uploaded
-    event: u32,              //0=none, 1=completed, 2=started, 3=stopped
-    ip_address: u32,         //0=default
-    key: u32,                //random key
-    num_want: u32,           //number of peers wanted (-1=default)
-    port: u16,               //port number
+    action: u32,                  //1 for announce
+    info_hash: &'a [u8; 20],      //SHA1 info hash
+    peer_id: &'a [u8; 20],        //peer id of peer
+    downloaded: Arc<RwLock<u64>>, //total bytes downloaded
+    left: Arc<RwLock<u64>>,       //bytes left to download
+    uploaded: Arc<RwLock<u64>>,   //total bytes uploaded
+    event: u32,                   //0=none, 1=completed, 2=started, 3=stopped
+    ip_address: u32,              //0=default
+    key: u32,                     //random key
+    num_want: u32,                //number of peers wanted (-1=default)
+    port: u16,                    //port number
 }
 
 impl<'a> AnnounceRequestUDP<'a> {
     //create a new tracker request
-    pub fn new(
+    fn new(
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        downloaded: &'a u64,
-        left: &'a u64,
-        uploaded: &'a u64,
+        downloaded: Arc<RwLock<u64>>,
+        left: Arc<RwLock<u64>>,
+        uploaded: Arc<RwLock<u64>>,
         port: u16,
     ) -> Self {
         Self {
@@ -147,16 +149,19 @@ impl<'a> AnnounceRequestUDP<'a> {
     }
 
     //serialize request to bytes
-    pub fn to_bytes(&self, connection_id: u64, transaction_id: u32) -> [u8; 98] {
+    async fn to_bytes(&self, connection_id: u64, transaction_id: u32) -> [u8; 98] {
         let mut buf = [0u8; 98];
         buf[0..8].copy_from_slice(&connection_id.to_be_bytes());
         buf[8..12].copy_from_slice(&1_u32.to_be_bytes());
         buf[12..16].copy_from_slice(&transaction_id.to_be_bytes());
         buf[16..36].copy_from_slice(self.info_hash);
         buf[36..56].copy_from_slice(self.peer_id);
-        buf[56..64].copy_from_slice(&self.downloaded.to_be_bytes());
-        buf[64..72].copy_from_slice(&self.left.to_be_bytes());
-        buf[72..80].copy_from_slice(&self.uploaded.to_be_bytes());
+        let downloaded = self.downloaded.read().await;
+        buf[56..64].copy_from_slice(&downloaded.to_be_bytes());
+        let left = self.left.read().await;
+        buf[64..72].copy_from_slice(&left.to_be_bytes());
+        let uploaded = self.uploaded.read().await;
+        buf[72..80].copy_from_slice(&uploaded.to_be_bytes());
         buf[80..84].copy_from_slice(&self.event.to_be_bytes());
         buf[84..88].copy_from_slice(&self.ip_address.to_be_bytes());
         buf[88..92].copy_from_slice(&self.key.to_be_bytes());
@@ -228,7 +233,7 @@ struct ConnectionResponse {
 
 impl ConnectionResponse {
     //convert bytes to ConnectionResponse
-    pub fn from_bytes(data: [u8; 16]) -> Self {
+    fn from_bytes(data: [u8; 16]) -> Self {
         let action = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         let transaction_id = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
         let connection_id = u64::from_be_bytes([
@@ -331,7 +336,7 @@ async fn announce<'a>(
         //generate random transaction id
         let transaction_id: u32 = rand::random();
         //get announce request message
-        let request_message = announce_request.to_bytes(connection_id, transaction_id);
+        let request_message = announce_request.to_bytes(connection_id, transaction_id).await;
         //send message
         socket.send_to(&request_message, server_addr).await?;
 

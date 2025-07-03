@@ -3,13 +3,13 @@ use tokio::sync::RwLock;
 
 //manages torrent status 
 #[derive(Debug)]
-pub struct TorrentStatus {
+pub struct TorrentStats {
     pub downloaded: Arc<RwLock<u64>>,
     pub uploaded: Arc<RwLock<u64>>,
     pub left: Arc<RwLock<u64>>,
 }
 
-impl TorrentStatus {
+impl TorrentStats {
     //create a new object
     pub fn new(total_size: u64) -> Self {
         Self {

@@ -1,10 +1,11 @@
 use crate::core::peer::peer::Peer;
-use crate::core::tracker::tracker::Tracker;
+use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
 use crate::util::bencode::bencode_decodable::BencodeDecodable;
 use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
 use crate::util::errors::BStreamingError;
 
+use async_trait::async_trait;
 use bencode::{Bencode, from_buffer};
 use http::uri::PathAndQuery;
 use http::{Request, Uri};
@@ -36,7 +37,20 @@ impl<'a> TrackerHTTP<'a> {
     }
 }
 
-impl<'a> Tracker<'a> for TrackerHTTP<'a> {
+#[async_trait]
+impl<'a> Tracker for TrackerHTTP<'a> {
+    //get peers from tracker, making a new request if needed
+    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
+        //request again if interval has passed
+        if self.last_announce.elapsed().as_secs() > self.response.interval {
+            let response_bencode = self.announce().await?;
+            self.response = AnnounceResponseHTTP::decode(&response_bencode)?;
+        }
+        Ok(&self.response.peers)
+    }
+}
+
+impl<'a> TrackerConstructor<'a> for TrackerHTTP<'a> {
     //create a new tracker and sends an initial request
     async fn new(
         tracker: &'a [u8],
@@ -57,16 +71,6 @@ impl<'a> Tracker<'a> for TrackerHTTP<'a> {
             last_announce: Instant::now(),
             response: AnnounceResponseHTTP::decode(&response_bencode)?,
         })
-    }
-
-    //get peers from tracker, making a new request if needed
-    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
-        //request again if interval has passed
-        if self.last_announce.elapsed().as_secs() > self.response.interval {
-            let response_bencode = self.announce().await?;
-            self.response = AnnounceResponseHTTP::decode(&response_bencode)?;
-        }
-        Ok(&self.response.peers)
     }
 }
 

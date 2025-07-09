@@ -1,10 +1,17 @@
 use crate::core::peer::peer::Peer;
 use crate::core::tracker::tracker_error::TrackerError;
 
+use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-pub trait Tracker<'a>: Sized {
+#[async_trait]
+pub trait Tracker: Send + Sync {
+    //get peers from tracker
+    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError>;
+}
+
+pub trait TrackerConstructor<'a>: Sized {
     //create a new tracker and sends an initial request
     async fn new(
         announce_url: &'a [u8],
@@ -15,7 +22,4 @@ pub trait Tracker<'a>: Sized {
         uploaded: Arc<RwLock<u64>>,
         port: u16,
     ) -> Result<Self, TrackerError>;
-
-    //get peers from tracker
-    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError>;
 }

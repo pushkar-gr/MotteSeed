@@ -3,9 +3,9 @@ mod util;
 
 use core::peer::peer_id::get_peer_id;
 use core::torrent::torrent::TorrentFile;
-use core::tracker::tracker::Tracker;
-use core::tracker::tracker_udp::TrackerUDP;
 use core::torrent_stats::TorrentStats;
+use core::tracker::tracker::{Tracker, TrackerConstructor};
+use core::tracker::tracker_udp::TrackerUDP;
 
 use std::env;
 use std::path::Path;

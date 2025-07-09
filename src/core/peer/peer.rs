@@ -1,6 +1,6 @@
 use std::array::TryFromSliceError;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Hash, PartialEq, std::cmp::Eq)]
 pub struct Peer {
     peer_ip: [u8; 4], //ip address of peer
     peer_port: u16,   //connection port for peer

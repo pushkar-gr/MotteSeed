@@ -1,7 +1,8 @@
 use crate::core::peer::peer::Peer;
-use crate::core::tracker::tracker::Tracker;
+use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
 
+use async_trait::async_trait;
 use rand;
 use std::array::TryFromSliceError;
 use std::net::SocketAddr;
@@ -60,7 +61,19 @@ impl<'a> TrackerUDP<'a> {
     }
 }
 
-impl<'a> Tracker<'a> for TrackerUDP<'a> {
+#[async_trait]
+impl<'a> Tracker for TrackerUDP<'a> {
+    //get peers from tracker, making a new request if needed
+    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
+        //request again if interval has passed
+        if self.last_announce.elapsed().as_secs() > self.announce_response.interval.into() {
+            self.announce_response = self.announce().await?;
+        }
+        Ok(&self.announce_response.peers)
+    }
+}
+
+impl<'a> TrackerConstructor<'a> for TrackerUDP<'a> {
     //creates new TrackerUDP
     async fn new(
         announce_url: &'a [u8],
@@ -95,15 +108,6 @@ impl<'a> Tracker<'a> for TrackerUDP<'a> {
             last_announce: Instant::now(),
             announce_response,
         })
-    }
-
-    //get peers from tracker, making a new request if needed
-    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
-        //request again if interval has passed
-        if self.last_announce.elapsed().as_secs() > self.announce_response.interval.into() {
-            self.announce_response = self.announce().await?;
-        }
-        Ok(&self.announce_response.peers)
     }
 }
 
@@ -334,7 +338,9 @@ async fn announce<'a>(
         //generate random transaction id
         let transaction_id: u32 = rand::random();
         //get announce request message
-        let request_message = announce_request.to_bytes(connection_id, transaction_id).await;
+        let request_message = announce_request
+            .to_bytes(connection_id, transaction_id)
+            .await;
         //send message
         socket.send_to(&request_message, server_addr).await?;
 

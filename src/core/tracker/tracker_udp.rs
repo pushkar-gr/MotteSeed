@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use rand;
 use std::array::TryFromSliceError;
 use std::net::SocketAddr;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::UdpSocket;

@@ -59,6 +59,22 @@ pub struct Info<'a> {
     pub file_details: FileDetails<'a>, //single/multi file torrent
 }
 
+impl<'a> Info<'a> {
+    //get SHA1 of a index from raw_pieces
+    pub fn piece_hash(&self, index: usize) -> Option<&[u8; 20]> {
+        //compute start and end
+        let start = index * 20;
+        let end = start + 20;
+        //check if in range
+        if end <= self.raw_pieces.len() {
+            //get the slice and convert it into a reference to a fixed-size array
+            self.raw_pieces[start..end].try_into().ok()
+        } else {
+            None
+        }
+    }
+}
+
 impl<'a> BencodeDecodable<'a> for Info<'a> {
     fn decode(b: &'a Bencode) -> Result<Self, BencodeDecodableError> {
         //get dict from bencode
@@ -138,30 +154,14 @@ impl<'a> BencodeDecodable<'a> for FileEntry<'a> {
     }
 }
 
-impl<'a> Info<'a> {
-    //get SHA1 of a index from raw_pieces
-    pub fn piece_hash(&self, index: usize) -> Option<&[u8; 20]> {
-        //compute start and end
-        let start = index * 20;
-        let end = start + 20;
-        //check if in range
-        if end <= self.raw_pieces.len() {
-            //get the slice and convert it into a reference to a fixed-size array
-            self.raw_pieces[start..end].try_into().ok()
-        } else {
-            None
-        }
-    }
-}
-
 #[derive(Debug)]
-pub struct TorrentFile {
-    _data: Rc<Vec<u8>>,            //store data to ensure it stays alive
-    _bencode: Rc<Bencode>,         //store bencode to ensure it stays alive
-    pub torrent: Torrent<'static>, //parsed torrent that references the data
+pub struct TorrentFile<'a> {
+    _data: Rc<Vec<u8>>,       //store data to ensure it stays alive
+    _bencode: Rc<Bencode>,    //store bencode to ensure it stays alive
+    pub torrent: Torrent<'a>, //parsed torrent that references the data
 }
 
-impl TorrentFile {
+impl<'a> TorrentFile<'a> {
     //create TorrentFile from bytes
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, ReadTorrentError> {
         //create reference-counted data

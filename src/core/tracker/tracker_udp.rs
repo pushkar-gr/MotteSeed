@@ -84,7 +84,7 @@ impl<'a> TrackerConstructor<'a> for TrackerUDP<'a> {
     ) -> Result<Self, TrackerError> {
         //parse announce url
         let address_str = std::str::from_utf8(announce_url)?;
-        let server_addr = parse_udp_url(address_str)?;
+        let server_addr = parse_udp_url(address_str).await?;
 
         //bind to local port
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
@@ -276,13 +276,21 @@ async fn get_connection_id(
 
 //parse str to get SocketAddr
 #[inline]
-fn parse_udp_url(url: &str) -> Result<SocketAddr, TrackerError> {
+async fn parse_udp_url(url: &str) -> Result<SocketAddr, TrackerError> {
+    //get url host
     let host_port = url
         .strip_prefix("udp://")
         .ok_or_else(|| TrackerError::Other("Invalid UDP URL format".into()))?;
 
-    SocketAddr::from_str(host_port)
-        .map_err(|e| TrackerError::Other(format!("Invalid address: {}", e).into()))
+    //get ip addr of tracker
+    let mut addrs = tokio::net::lookup_host(host_port)
+        .await
+        .map_err(|e| TrackerError::Other(format!("DNS resolve error: {}", e).into()))?;
+
+    //create SocketAddr
+    addrs
+        .next()
+        .ok_or_else(|| TrackerError::Other("No address found for tracker".into()))
 }
 
 //recive tracker response

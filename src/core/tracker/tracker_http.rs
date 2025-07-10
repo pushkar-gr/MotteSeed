@@ -1,3 +1,4 @@
+use crate::core::torrent_stats::TorrentStats;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
 use crate::util::bencode::bencode_decodable::BencodeDecodable;
@@ -55,14 +56,10 @@ impl<'a> TrackerConstructor<'a> for TrackerHTTP<'a> {
         tracker: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        downloaded: Arc<RwLock<u64>>,
-        left: Arc<RwLock<u64>>,
-        uploaded: Arc<RwLock<u64>>,
+        stats: Arc<RwLock<TorrentStats>>,
         port: u16,
     ) -> Result<Self, TrackerError> {
-        let request = AnnounceRequestHTTP::new(
-            tracker, info_hash, peer_id, port, uploaded, downloaded, left, true,
-        )?;
+        let request = AnnounceRequestHTTP::new(tracker, info_hash, peer_id, port, stats, true)?;
         let response_bencode = announce(&request).await?;
 
         Ok(Self {
@@ -76,14 +73,12 @@ impl<'a> TrackerConstructor<'a> for TrackerHTTP<'a> {
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
 struct AnnounceRequestHTTP<'a> {
-    tracker: &'a str,             //tracker URL as str
-    url_info_hash: String,        //URL-encoded info hash
-    url_peer_id: String,          //URL-encoded peer ID
-    port: u16,                    //port number for incoming connections
-    uploaded: Arc<RwLock<u64>>,   //total bytes uploaded
-    downloaded: Arc<RwLock<u64>>, //total bytes downloaded
-    left: Arc<RwLock<u64>>,       //bytes left to download
-    compact: bool,                //whether to request compact peer list
+    tracker: &'a str,                 //tracker URL as str
+    url_info_hash: String,            //URL-encoded info hash
+    url_peer_id: String,              //URL-encoded peer ID
+    port: u16,                        //port number for incoming connections
+    stats: Arc<RwLock<TorrentStats>>, //bytes left to download
+    compact: bool,                    //whether to request compact peer list
 }
 
 impl<'a> AnnounceRequestHTTP<'a> {
@@ -93,9 +88,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
         port: u16,
-        uploaded: Arc<RwLock<u64>>,
-        downloaded: Arc<RwLock<u64>>,
-        left: Arc<RwLock<u64>>,
+        stats: Arc<RwLock<TorrentStats>>,
         compact: bool,
     ) -> Result<Self, TrackerError> {
         //convert uri from bytes to str
@@ -106,9 +99,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
             url_info_hash: Self::url_encode(info_hash),
             url_peer_id: Self::url_encode(peer_id),
             port,
-            uploaded,
-            downloaded,
-            left,
+            stats,
             compact,
         })
     }
@@ -184,17 +175,19 @@ impl<'a> AnnounceRequestHTTP<'a> {
         path_and_query.push_str("&port=");
         path_and_query.push_str(buffer.format(self.port));
 
-        let uploaded = self.uploaded.read().await;
+        let (uploaded, downloaded, left) = {
+            let stats = self.stats.read().await;
+            (stats.uploaded, stats.downloaded, stats.left)
+        };
+
         path_and_query.push_str("&uploaded=");
-        path_and_query.push_str(buffer.format(*uploaded));
+        path_and_query.push_str(buffer.format(uploaded));
 
-        let downloaded = self.downloaded.read().await;
         path_and_query.push_str("&downloaded=");
-        path_and_query.push_str(buffer.format(*downloaded));
+        path_and_query.push_str(buffer.format(downloaded));
 
-        let left = self.left.read().await;
         path_and_query.push_str("&left=");
-        path_and_query.push_str(buffer.format(*left));
+        path_and_query.push_str(buffer.format(left));
 
         path_and_query.push_str("&compact=");
         path_and_query.push(if self.compact { '1' } else { '0' });

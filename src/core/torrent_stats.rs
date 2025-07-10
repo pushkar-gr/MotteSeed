@@ -1,41 +1,34 @@
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
-//manages torrent status 
+//manages torrent status
 #[derive(Debug)]
 pub struct TorrentStats {
-    pub downloaded: Arc<RwLock<u64>>,
-    pub uploaded: Arc<RwLock<u64>>,
-    pub left: Arc<RwLock<u64>>,
+    pub downloaded: u64,
+    pub uploaded: u64,
+    pub left: u64,
 }
 
 impl TorrentStats {
     //create a new object
     pub fn new(total_size: u64) -> Self {
         Self {
-            downloaded: Arc::new(RwLock::new(0)),
-            uploaded: Arc::new(RwLock::new(0)),
-            left: Arc::new(RwLock::new(total_size)),
+            downloaded: 0,
+            uploaded: 0,
+            left: total_size,
         }
     }
 
     //update downloaded bytes
-    pub async fn update_downloaded(&self, bytes: u64) {
-        let mut downloaded = self.downloaded.write().await;
-        let mut left = self.left.write().await;
-        *downloaded += bytes;
-        *left = left.saturating_sub(bytes);
+    pub async fn update_downloaded(&mut self, bytes: u64) {
+        self.downloaded += bytes;
+        self.left = self.left.saturating_sub(bytes);
     }
 
     //update uploaded bytes
-    pub async fn update_uploaded(&self, bytes: u64) {
-        let mut uploaded = self.uploaded.write().await;
-        *uploaded += bytes;
+    pub async fn update_uploaded(&mut self, bytes: u64) {
+        self.uploaded += bytes;
     }
 
     //update left bytes
-    pub async fn updated_left(&self, bytes: u64) {
-        let mut left = self.left.write().await;
-        *left += bytes;
+    pub async fn updated_left(&mut self, bytes: u64) {
+        self.left += bytes;
     }
 }

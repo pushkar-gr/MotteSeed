@@ -4,11 +4,12 @@ use crate::core::{peer::peer::Peer, torrent_stats::TorrentStats, tracker::tracke
 
 use std::collections::HashSet;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 //manages trackers
 pub struct TrackerManager<'a> {
     trackers: Vec<Box<dyn Tracker + 'a>>, //vector of trackers
-    stats: TorrentStats,                  //tracker stats
+    stats: Arc<RwLock<TorrentStats>>,     //tracker stats
     peer_pool: HashSet<[u8; 6]>,          //hashlist of peers
     info_hash: &'a [u8; 20],              //info hash of torrent
     peer_id: &'a [u8; 20],                //peer id of client
@@ -24,20 +25,18 @@ impl<'a> TrackerManager<'a> {
         total_size: u64,
         port: u16,
     ) -> Result<Self, TrackerError> {
-        let stats = TorrentStats::new(total_size);
+        let stats = Arc::new(RwLock::new(TorrentStats::new(total_size)));
         let tracker = TrackerFactory::create_tracker(
             announce_url,
             info_hash,
             peer_id,
-            Arc::clone(&stats.downloaded),
-            Arc::clone(&stats.left),
-            Arc::clone(&stats.uploaded),
+            Arc::clone(&stats),
             port,
         )
         .await?;
         Ok(Self {
             trackers: vec![tracker],
-            stats,
+            stats: stats,
             peer_pool: HashSet::new(),
             info_hash,
             peer_id,

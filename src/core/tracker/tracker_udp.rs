@@ -1,3 +1,4 @@
+use crate::core::torrent_stats::TorrentStats;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
 
@@ -78,9 +79,7 @@ impl<'a> TrackerConstructor<'a> for TrackerUDP<'a> {
         announce_url: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        downloaded: Arc<RwLock<u64>>,
-        left: Arc<RwLock<u64>>,
-        uploaded: Arc<RwLock<u64>>,
+        stats: Arc<RwLock<TorrentStats>>,
         port: u16,
     ) -> Result<Self, TrackerError> {
         //parse announce url
@@ -92,8 +91,7 @@ impl<'a> TrackerConstructor<'a> for TrackerUDP<'a> {
 
         let connection_id = get_connection_id(&socket, &server_addr).await?;
 
-        let announce_request =
-            AnnounceRequestUDP::new(info_hash, peer_id, downloaded, left, uploaded, port);
+        let announce_request = AnnounceRequestUDP::new(info_hash, peer_id, stats, port);
 
         let announce_response =
             announce(&server_addr, &socket, connection_id, &announce_request).await?;
@@ -113,16 +111,14 @@ impl<'a> TrackerConstructor<'a> for TrackerUDP<'a> {
 //represents a request to be sent to a BitTorrent tracker
 #[derive(Debug)]
 struct AnnounceRequestUDP<'a> {
-    info_hash: &'a [u8; 20],      //SHA1 info hash
-    peer_id: &'a [u8; 20],        //peer id of peer
-    downloaded: Arc<RwLock<u64>>, //total bytes downloaded
-    left: Arc<RwLock<u64>>,       //bytes left to download
-    uploaded: Arc<RwLock<u64>>,   //total bytes uploaded
-    event: u32,                   //0=none, 1=completed, 2=started, 3=stopped
-    ip_address: u32,              //0=default
-    key: u32,                     //random key
-    num_want: u32,                //number of peers wanted (-1=default)
-    port: u16,                    //port number
+    info_hash: &'a [u8; 20],          //SHA1 info hash
+    peer_id: &'a [u8; 20],            //peer id of peer
+    stats: Arc<RwLock<TorrentStats>>, //total bytes downloaded
+    event: u32,                       //0=none, 1=completed, 2=started, 3=stopped
+    ip_address: u32,                  //0=default
+    key: u32,                         //random key
+    num_want: u32,                    //number of peers wanted (-1=default)
+    port: u16,                        //port number
 }
 
 impl<'a> AnnounceRequestUDP<'a> {
@@ -130,17 +126,13 @@ impl<'a> AnnounceRequestUDP<'a> {
     fn new(
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        downloaded: Arc<RwLock<u64>>,
-        left: Arc<RwLock<u64>>,
-        uploaded: Arc<RwLock<u64>>,
+        stats: Arc<RwLock<TorrentStats>>,
         port: u16,
     ) -> Self {
         Self {
             info_hash,
             peer_id,
-            downloaded,
-            left,
-            uploaded,
+            stats,
             event: 0,
             ip_address: 0,
             key: rand::random(),
@@ -157,11 +149,12 @@ impl<'a> AnnounceRequestUDP<'a> {
         buf[12..16].copy_from_slice(&transaction_id.to_be_bytes());
         buf[16..36].copy_from_slice(self.info_hash);
         buf[36..56].copy_from_slice(self.peer_id);
-        let downloaded = self.downloaded.read().await;
+        let (uploaded, downloaded, left) = {
+            let stats = self.stats.read().await;
+            (stats.uploaded, stats.downloaded, stats.left)
+        };
         buf[56..64].copy_from_slice(&downloaded.to_be_bytes());
-        let left = self.left.read().await;
         buf[64..72].copy_from_slice(&left.to_be_bytes());
-        let uploaded = self.uploaded.read().await;
         buf[72..80].copy_from_slice(&uploaded.to_be_bytes());
         buf[80..84].copy_from_slice(&self.event.to_be_bytes());
         buf[84..88].copy_from_slice(&self.ip_address.to_be_bytes());

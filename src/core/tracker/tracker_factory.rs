@@ -1,7 +1,11 @@
-use crate::core::tracker::{
-    tracker::{Tracker, TrackerConstructor},
-    tracker_error::TrackerError,
-    tracker_http::TrackerHTTP,
+use crate::core::{
+    torrent_stats::TorrentStats,
+    tracker::{
+        tracker::{Tracker, TrackerConstructor},
+        tracker_error::TrackerError,
+        tracker_http::TrackerHTTP,
+        tracker_udp::TrackerUDP,
+    },
 };
 
 use std::sync::Arc;
@@ -32,35 +36,15 @@ impl TrackerFactory {
         announce_url: &'a [u8],
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
-        downloaded: Arc<RwLock<u64>>,
-        left: Arc<RwLock<u64>>,
-        uploaded: Arc<RwLock<u64>>,
+        stats: Arc<RwLock<TorrentStats>>,
         port: u16,
     ) -> Result<Box<dyn Tracker + 'a>, TrackerError> {
         match Self::determine_type(announce_url) {
             TrackerType::HTTP => Ok(Box::new(
-                TrackerHTTP::new(
-                    announce_url,
-                    info_hash,
-                    peer_id,
-                    downloaded,
-                    left,
-                    uploaded,
-                    port,
-                )
-                .await?,
+                TrackerHTTP::new(announce_url, info_hash, peer_id, stats, port).await?,
             )),
             TrackerType::UDP => Ok(Box::new(
-                TrackerHTTP::new(
-                    announce_url,
-                    info_hash,
-                    peer_id,
-                    downloaded,
-                    left,
-                    uploaded,
-                    port,
-                )
-                .await?,
+                TrackerUDP::new(announce_url, info_hash, peer_id, stats, port).await?,
             )),
         }
     }

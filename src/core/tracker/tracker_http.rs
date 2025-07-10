@@ -1,4 +1,3 @@
-use crate::core::peer::peer::Peer;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
 use crate::util::bencode::bencode_decodable::BencodeDecodable;
@@ -40,7 +39,7 @@ impl<'a> TrackerHTTP<'a> {
 #[async_trait]
 impl<'a> Tracker for TrackerHTTP<'a> {
     //get peers from tracker, making a new request if needed
-    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
+    async fn get_peers(&mut self) -> Result<&Vec<[u8; 6]>, TrackerError> {
         //request again if interval has passed
         if self.last_announce.elapsed().as_secs() > self.response.interval {
             let response_bencode = self.announce().await?;
@@ -209,8 +208,8 @@ impl<'a> AnnounceRequestHTTP<'a> {
 //represents a reponse sent by a trakcer
 #[derive(Debug)]
 struct AnnounceResponseHTTP {
-    interval: u64,    //seconds between tracker requests
-    peers: Vec<Peer>, //list of peers received from tracker
+    interval: u64,       //seconds between tracker requests
+    peers: Vec<[u8; 6]>, //list of peers received from tracker
 }
 
 impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
@@ -243,9 +242,7 @@ impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
             let peer_bytes: [u8; 6] = chunk
                 .try_into()
                 .map_err(|e: TryFromSliceError| BencodeDecodableError::Other(e.into()))?;
-            peers.push(
-                Peer::decode(&peer_bytes).map_err(|e| BencodeDecodableError::Other(e.into()))?,
-            );
+            peers.push(peer_bytes);
         }
 
         Ok(Self { interval, peers })

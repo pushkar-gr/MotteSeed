@@ -4,16 +4,15 @@ use crate::core::{peer::peer::Peer, torrent_stats::TorrentStats, tracker::tracke
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 //manages trackers
 pub struct TrackerManager<'a> {
-    trackers: Vec<Box<dyn Tracker + 'a>>,      //vector of trackers
-    stats: TorrentStats,                       //tracker stats
-    peer_pool: Arc<RwLock<HashSet<&'a Peer>>>, //hashlist of peers
-    info_hash: &'a [u8; 20],                   //info hash of torrent
-    peer_id: &'a [u8; 20],                     //peer id of client
-    port: u16,                                 //connection port
+    trackers: Vec<Box<dyn Tracker + 'a>>, //vector of trackers
+    stats: TorrentStats,                  //tracker stats
+    peer_pool: HashSet<[u8; 6]>,          //hashlist of peers
+    info_hash: &'a [u8; 20],              //info hash of torrent
+    peer_id: &'a [u8; 20],                //peer id of client
+    port: u16,                            //connection port
 }
 
 impl<'a> TrackerManager<'a> {
@@ -39,7 +38,7 @@ impl<'a> TrackerManager<'a> {
         Ok(Self {
             trackers: vec![tracker],
             stats,
-            peer_pool: Arc::new(RwLock::new(HashSet::new())),
+            peer_pool: HashSet::new(),
             info_hash,
             peer_id,
             port,
@@ -47,12 +46,11 @@ impl<'a> TrackerManager<'a> {
     }
 
     //get peers from all trackers
-    pub async fn poll_all_trackers(&'a mut self) -> Result<(), TrackerError> {
+    pub async fn poll_all_trackers(&mut self) -> Result<(), TrackerError> {
         for tracker in &mut self.trackers {
             if let Ok(peers) = tracker.get_peers().await {
-                let mut peer_pool = self.peer_pool.write().await;
                 for peer in peers {
-                    peer_pool.insert(peer);
+                    self.peer_pool.insert(*peer);
                 }
             }
         }
@@ -60,8 +58,10 @@ impl<'a> TrackerManager<'a> {
     }
 
     //get all peers
-    pub async fn get_all_peers(&self) -> Vec<&Peer> {
-        let peer_pool = self.peer_pool.read().await;
-        peer_pool.iter().copied().collect()
+    pub async fn get_all_peers(&self) -> Vec<Peer> {
+        self.peer_pool
+            .iter()
+            .filter_map(|bytes| Peer::from_bytes(*bytes).ok())
+            .collect()
     }
 }

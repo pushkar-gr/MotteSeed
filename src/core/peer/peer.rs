@@ -14,12 +14,3 @@ impl Peer {
         Ok(Self { peer_ip, peer_port })
     }
 }
-
-impl Peer {
-    pub fn decode(bytes: &[u8; 6]) -> Result<Self, TryFromSliceError> {
-        Ok(Self {
-            peer_ip: bytes[0..4].try_into()?,
-            peer_port: u16::from_be_bytes(bytes[4..6].try_into()?),
-        })
-    }
-}

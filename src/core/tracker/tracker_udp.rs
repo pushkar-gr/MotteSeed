@@ -1,4 +1,3 @@
-use crate::core::peer::peer::Peer;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
 
@@ -64,7 +63,7 @@ impl<'a> TrackerUDP<'a> {
 #[async_trait]
 impl<'a> Tracker for TrackerUDP<'a> {
     //get peers from tracker, making a new request if needed
-    async fn get_peers(&mut self) -> Result<&Vec<Peer>, TrackerError> {
+    async fn get_peers(&mut self) -> Result<&Vec<[u8; 6]>, TrackerError> {
         //request again if interval has passed
         if self.last_announce.elapsed().as_secs() > self.announce_response.interval.into() {
             self.announce_response = self.announce().await?;
@@ -181,7 +180,7 @@ struct AnnounceResponseUDP {
     interval: u32,       //seconds between tracker requests
     leechers: u32,       //number of leachers
     seeders: u32,        //number of seeders
-    peers: Vec<Peer>,    //list of peers received from tracker
+    peers: Vec<[u8; 6]>, //list of peers received from tracker
 }
 
 impl AnnounceResponseUDP {
@@ -212,7 +211,7 @@ impl AnnounceResponseUDP {
             let peer_bytes: [u8; 6] = chunk
                 .try_into()
                 .map_err(|e: TryFromSliceError| TrackerError::Other(e.into()))?;
-            peers.push(Peer::decode(&peer_bytes).map_err(|e| TrackerError::Other(e.into()))?);
+            peers.push(peer_bytes);
         }
 
         Ok(Self {

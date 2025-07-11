@@ -79,6 +79,11 @@ struct AnnounceRequestHTTP<'a> {
     port: u16,                        //port number for incoming connections
     stats: Arc<RwLock<TorrentStats>>, //bytes left to download
     compact: bool,                    //whether to request compact peer list
+    // Optional fields
+    event: Option<String>,            //started, completed, stopped, empty
+    numwant: Option<u32>,             //number of peers that the client would like to receive
+    key: Option<String>,              //additional identification for the client
+    trackerid: Option<String>,        //string returned from previous announce
 }
 
 impl<'a> AnnounceRequestHTTP<'a> {
@@ -101,6 +106,41 @@ impl<'a> AnnounceRequestHTTP<'a> {
             port,
             stats,
             compact,
+            // Initialize optional fields with None for now
+            event: Some("started".to_string()), // Set event to "started" for initial request
+            numwant: Some(50),                  // Request 50 peers by default
+            key: None,                          // No key by default
+            trackerid: None,                    // No tracker ID initially
+        })
+    }
+
+    //create a new tracker request with custom optional fields
+    fn new_with_options(
+        tracker: &'a [u8],
+        info_hash: &'a [u8; 20],
+        peer_id: &'a [u8; 20],
+        port: u16,
+        stats: Arc<RwLock<TorrentStats>>,
+        compact: bool,
+        event: Option<String>,
+        numwant: Option<u32>,
+        key: Option<String>,
+        trackerid: Option<String>,
+    ) -> Result<Self, TrackerError> {
+        //convert uri from bytes to str
+        let tracker = std::str::from_utf8(tracker)?;
+
+        Ok(Self {
+            tracker,
+            url_info_hash: Self::url_encode(info_hash),
+            url_peer_id: Self::url_encode(peer_id),
+            port,
+            stats,
+            compact,
+            event,
+            numwant,
+            key,
+            trackerid,
         })
     }
 
@@ -192,6 +232,27 @@ impl<'a> AnnounceRequestHTTP<'a> {
         path_and_query.push_str("&compact=");
         path_and_query.push(if self.compact { '1' } else { '0' });
 
+        // Add optional parameters
+        if let Some(ref event) = self.event {
+            path_and_query.push_str("&event=");
+            path_and_query.push_str(event);
+        }
+
+        if let Some(numwant) = self.numwant {
+            path_and_query.push_str("&numwant=");
+            path_and_query.push_str(buffer.format(numwant));
+        }
+
+        if let Some(ref key) = self.key {
+            path_and_query.push_str("&key=");
+            path_and_query.push_str(key);
+        }
+
+        if let Some(ref trackerid) = self.trackerid {
+            path_and_query.push_str("&trackerid=");
+            path_and_query.push_str(trackerid);
+        }
+
         uri_parts.path_and_query = Some(PathAndQuery::try_from(path_and_query)?);
 
         Ok(Uri::from_parts(uri_parts)?)
@@ -203,6 +264,12 @@ impl<'a> AnnounceRequestHTTP<'a> {
 struct AnnounceResponseHTTP {
     interval: u64,       //seconds between tracker requests
     peers: Vec<[u8; 6]>, //list of peers received from tracker
+    // Optional fields
+    min_interval: Option<u64>,       //minimum seconds between tracker requests
+    tracker_id: Option<String>,      //tracker ID string for future requests
+    complete: Option<u32>,           //number of seeders
+    incomplete: Option<u32>,         //number of leechers
+    warning_message: Option<String>, //optional warning message from tracker
 }
 
 impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
@@ -238,7 +305,40 @@ impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
             peers.push(peer_bytes);
         }
 
-        Ok(Self { interval, peers })
+        // Parse optional fields
+        let min_interval = Self::get_struct_value("min interval", dict)
+            .ok()
+            .and_then(|v| Self::get_u64(v).ok());
+
+        let tracker_id = Self::get_struct_value("tracker id", dict)
+            .ok()
+            .and_then(|v| Self::get_string(v).ok())
+            .map(|s| s.into_owned());
+
+        let complete = Self::get_struct_value("complete", dict)
+            .ok()
+            .and_then(|v| Self::get_u64(v).ok())
+            .map(|v| v as u32);
+
+        let incomplete = Self::get_struct_value("incomplete", dict)
+            .ok()
+            .and_then(|v| Self::get_u64(v).ok())
+            .map(|v| v as u32);
+
+        let warning_message = Self::get_struct_value("warning message", dict)
+            .ok()
+            .and_then(|v| Self::get_string(v).ok())
+            .map(|s| s.into_owned());
+
+        Ok(Self { 
+            interval, 
+            peers,
+            min_interval,
+            tracker_id,
+            complete,
+            incomplete,
+            warning_message,
+        })
     }
 }
 

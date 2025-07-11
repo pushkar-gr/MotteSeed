@@ -132,10 +132,33 @@ impl<'a> AnnounceRequestUDP<'a> {
             info_hash,
             peer_id,
             stats,
-            event: 0,
+            event: 2, // 2 = started (default event for new connections)
             ip_address: 0,
             key: rand::random(),
             num_want: 50,
+            port,
+        }
+    }
+
+    //create a new tracker request with custom options
+    fn new_with_options(
+        info_hash: &'a [u8; 20],
+        peer_id: &'a [u8; 20],
+        stats: Arc<RwLock<TorrentStats>>,
+        port: u16,
+        event: u32,
+        ip_address: u32,
+        key: u32,
+        num_want: u32,
+    ) -> Self {
+        Self {
+            info_hash,
+            peer_id,
+            stats,
+            event,
+            ip_address,
+            key,
+            num_want,
             port,
         }
     }

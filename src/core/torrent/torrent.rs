@@ -21,6 +21,12 @@ pub struct Torrent<'a> {
     pub announce: &'a [u8],  //tracker URL
     pub info: Info<'a>,      //main metadata
     pub info_hash: [u8; 20], //SHA1 encoding of bencode value of info
+    // Optional fields
+    pub announce_list: Option<Vec<Vec<&'a [u8]>>>, //list of lists of tracker URLs
+    pub comment: Option<Cow<'a, str>>,             //free-form textual comment
+    pub created_by: Option<Cow<'a, str>>,          //name and version of program used to create torrent
+    pub creation_date: Option<u64>,                //creation time as Unix timestamp
+    pub encoding: Option<Cow<'a, str>>,            //string encoding format
 }
 
 impl<'a> BencodeDecodable<'a> for Torrent<'a> {
@@ -43,10 +49,50 @@ impl<'a> BencodeDecodable<'a> for Torrent<'a> {
         hasher.update(&info_bytes);
         let info_hash = hasher.finalize().into();
 
+        // Parse optional fields
+        let announce_list = Self::get_struct_value("announce-list", dict)
+            .ok()
+            .and_then(|list_bencode| {
+                Self::get_list(list_bencode).ok().map(|outer_list| {
+                    outer_list
+                        .iter()
+                        .filter_map(|inner_bencode| {
+                            Self::get_list(inner_bencode).ok().map(|inner_list| {
+                                inner_list
+                                    .iter()
+                                    .filter_map(|url_bencode| Self::get_str(url_bencode).ok())
+                                    .collect::<Vec<_>>()
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                })
+            });
+
+        let comment = Self::get_struct_value("comment", dict)
+            .ok()
+            .and_then(|c| Self::get_string(c).ok());
+
+        let created_by = Self::get_struct_value("created by", dict)
+            .ok()
+            .and_then(|c| Self::get_string(c).ok());
+
+        let creation_date = Self::get_struct_value("creation date", dict)
+            .ok()
+            .and_then(|c| Self::get_u64(c).ok());
+
+        let encoding = Self::get_struct_value("encoding", dict)
+            .ok()
+            .and_then(|c| Self::get_string(c).ok());
+
         Ok(Self {
             announce,
             info,
             info_hash,
+            announce_list,
+            comment,
+            created_by,
+            creation_date,
+            encoding,
         })
     }
 }
@@ -57,6 +103,9 @@ pub struct Info<'a> {
     pub piece_length: u64,             //size of each piece in bytes
     pub raw_pieces: &'a [u8], //raw bytes representing the concatenated SHA-1 hashes of all pieces
     pub file_details: FileDetails<'a>, //single/multi file torrent
+    // Optional fields
+    pub private: Option<u64>,           //if set to 1, client must not use DHT or peer exchange
+    pub source: Option<Cow<'a, str>>,  //source string for private torrents
 }
 
 impl<'a> Info<'a> {
@@ -114,11 +163,22 @@ impl<'a> BencodeDecodable<'a> for Info<'a> {
             },
         };
 
+        // Parse optional fields
+        let private = Self::get_struct_value("private", dict)
+            .ok()
+            .and_then(|p| Self::get_u64(p).ok());
+
+        let source = Self::get_struct_value("source", dict)
+            .ok()
+            .and_then(|s| Self::get_string(s).ok());
+
         Ok(Self {
             name,
             piece_length,
             raw_pieces,
             file_details,
+            private,
+            source,
         })
     }
 }

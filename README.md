@@ -4,11 +4,28 @@ A BitTorrent client implementation in Rust, focusing on performance, correctness
 
 ## Features
 
-* Parsing `.torrent` files.
-* Tracker communication.
+* Parsing `.torrent` files with support for optional fields.
+* Tracker communication (HTTP and UDP) with optional protocol fields.
 * Peer connection and communication.
 * Piece management and verification.
 * Disk I/O for file storage.
+
+### Supported Optional Fields
+
+**Torrent File Fields:**
+- `announce-list`: Backup tracker URLs
+- `comment`: Torrent description
+- `created by`: Creator program information
+- `creation date`: Unix timestamp of creation
+- `encoding`: String encoding format
+
+**Info Dictionary Fields:**
+- `private`: DHT/peer exchange control flag
+- `source`: Source identification for private torrents
+
+**Tracker Communication Fields:**
+- Request: `event`, `numwant`, `key`, `trackerid`
+- Response: `min_interval`, `tracker_id`, `complete`, `incomplete`, `warning_message`
 
 ## Getting Started
 

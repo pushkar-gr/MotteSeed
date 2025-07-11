@@ -16,7 +16,7 @@ async fn main() {
     let torrent_file = TorrentFile::from_file(&Path::new(&file_path)).unwrap();
     let peer_id = &get_peer_id();
     let mut tracker_manager = TrackerManager::new(
-        torrent_file.torrent.announce,
+        &vec![torrent_file.torrent.announce],
         &torrent_file.torrent.info_hash,
         peer_id,
         100,

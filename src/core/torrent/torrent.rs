@@ -21,6 +21,12 @@ pub struct Torrent<'a> {
     pub announce: &'a [u8],  //tracker URL
     pub info: Info<'a>,      //main metadata
     pub info_hash: [u8; 20], //SHA1 encoding of bencode value of info
+    //optional fields
+    pub comment: Option<&'a [u8]>,                 //creator comment
+    pub created_by: Option<&'a [u8]>,              //program that created the torrent
+    pub creation_date: Option<u64>,                //Unix timestamp when torrent was created
+    pub encoding: Option<&'a [u8]>,                //character encoding
+    pub announce_list: Option<Vec<Vec<&'a [u8]>>>, //list of backup trackers
 }
 
 impl<'a> BencodeDecodable<'a> for Torrent<'a> {
@@ -43,18 +49,63 @@ impl<'a> BencodeDecodable<'a> for Torrent<'a> {
         hasher.update(&info_bytes);
         let info_hash = hasher.finalize().into();
 
+        //get comment value
+        let comment = Self::get_struct_value("comment", dict)
+            .ok()
+            .and_then(|value| Self::get_str(value).ok());
+
+        //get created_by value
+        let created_by = Self::get_struct_value("created by", dict)
+            .ok()
+            .and_then(|value| Self::get_str(value).ok());
+
+        //get creation_date value
+        let creation_date = Self::get_struct_value("creation date", dict)
+            .ok()
+            .and_then(|value| Self::get_u64(value).ok());
+
+        //get encoding value
+        let encoding = Self::get_struct_value("encoding", dict)
+            .ok()
+            .and_then(|value| Self::get_str(value).ok());
+
+        //get announce-list
+        let announce_list =
+            Self::get_struct_value("announce-list", dict)
+                .ok()
+                .and_then(|announce_list_value| {
+                    Self::get_list(announce_list_value).ok().map(|outer_list| {
+                        outer_list
+                            .iter()
+                            .filter_map(|inner_list| {
+                                Self::get_list(inner_list).ok().map(|value| {
+                                    value
+                                        .iter()
+                                        .filter_map(|url| Self::get_str(url).ok())
+                                        .collect::<Vec<_>>()
+                                })
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                });
+
         Ok(Self {
             announce,
             info,
             info_hash,
+            comment,
+            created_by,
+            creation_date,
+            encoding,
+            announce_list,
         })
     }
 }
 
 #[derive(Debug)]
 pub struct Info<'a> {
-    pub name: Cow<'a, str>,            //torrent name/file name
-    pub piece_length: u64,             //size of each piece in bytes
+    pub name: Cow<'a, str>,   //torrent name/file name
+    pub piece_length: u64,    //size of each piece in bytes
     pub raw_pieces: &'a [u8], //raw bytes representing the concatenated SHA-1 hashes of all pieces
     pub file_details: FileDetails<'a>, //single/multi file torrent
 }

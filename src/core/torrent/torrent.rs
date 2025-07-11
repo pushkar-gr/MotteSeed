@@ -104,10 +104,13 @@ impl<'a> BencodeDecodable<'a> for Torrent<'a> {
 
 #[derive(Debug)]
 pub struct Info<'a> {
-    pub name: Cow<'a, str>,   //torrent name/file name
-    pub piece_length: u64,    //size of each piece in bytes
+    pub name: Cow<'a, str>,            //torrent name/file name
+    pub piece_length: u64,             //size of each piece in bytes
     pub raw_pieces: &'a [u8], //raw bytes representing the concatenated SHA-1 hashes of all pieces
     pub file_details: FileDetails<'a>, //single/multi file torrent
+    //optional fields
+    pub private: Option<u64>,     //1=private
+    pub source: Option<&'a [u8]>, //source for private torrents
 }
 
 impl<'a> Info<'a> {
@@ -165,11 +168,23 @@ impl<'a> BencodeDecodable<'a> for Info<'a> {
             },
         };
 
+        //get private value
+        let private = Self::get_struct_value("private", dict)
+            .ok()
+            .and_then(|value| Self::get_u64(value).ok());
+
+        //get source value
+        let source = Self::get_struct_value("source", dict)
+            .ok()
+            .and_then(|value| Self::get_str(value).ok());
+
         Ok(Self {
             name,
             piece_length,
             raw_pieces,
             file_details,
+            private,
+            source,
         })
     }
 }

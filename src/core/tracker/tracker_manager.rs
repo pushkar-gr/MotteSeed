@@ -19,7 +19,8 @@ pub struct TrackerManager<'a> {
 impl<'a> TrackerManager<'a> {
     //create a new tracker manager
     pub async fn new(
-        announce_urls: &Vec<&'a [u8]>,
+        announce_url: &'a [u8],
+        announce_url_list: Option<&Vec<Vec<&'a [u8]>>>,
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
         total_size: u64,
@@ -27,17 +28,34 @@ impl<'a> TrackerManager<'a> {
     ) -> Result<Self, TrackerError> {
         let stats = Arc::new(RwLock::new(TorrentStats::new(total_size)));
         let mut trackers = Vec::new();
-        for announce_url in announce_urls {
-            if let Ok(tracker) = TrackerFactory::create_tracker(
-                announce_url,
-                info_hash,
-                peer_id,
-                Arc::clone(&stats),
-                port,
-            )
-            .await
-            {
-                trackers.push(tracker)
+        //create tracker from announce_url
+        if let Ok(tracker) = TrackerFactory::create_tracker(
+            announce_url,
+            info_hash,
+            peer_id,
+            Arc::clone(&stats),
+            port,
+        )
+        .await
+        {
+            trackers.push(tracker);
+        }
+        //create trackers from announce_urls_list
+        if let Some(announce_url_list) = announce_url_list {
+            for announce_urls in announce_url_list {
+                for announce_url in announce_urls {
+                    if let Ok(tracker) = TrackerFactory::create_tracker(
+                        announce_url,
+                        info_hash,
+                        peer_id,
+                        Arc::clone(&stats),
+                        port,
+                    )
+                    .await
+                    {
+                        trackers.push(tracker);
+                    }
+                }
             }
         }
         Ok(Self {

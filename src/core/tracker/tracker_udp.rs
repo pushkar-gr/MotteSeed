@@ -274,24 +274,31 @@ async fn get_connection_id(
 }
 
 //parse str to get SocketAddr
-#[inline]
 async fn parse_udp_url(url: &str) -> Result<SocketAddr, TrackerError> {
     //get url host
     let host_port = url
         .strip_prefix("udp://")
         .ok_or_else(|| TrackerError::Other("Invalid UDP URL format".into()))?;
+    let host_port = match host_port.find('/') {
+        Some(index) => &host_port[..index],
+        None => host_port,
+    };
 
     //get ip addr of tracker
-    let mut addrs = tokio::net::lookup_host(host_port)
+    let addrs = tokio::net::lookup_host(host_port)
         .await
         .map_err(|e| TrackerError::Other(format!("DNS resolve error: {}", e).into()))?;
 
     //create SocketAddr
-    addrs
-        .next()
-        .ok_or_else(|| TrackerError::Other("No address found for tracker".into()))
+    let ipv4_addrs: Vec<SocketAddr> = addrs.filter(|addr| addr.is_ipv4()).collect();
+    
+    //return if IPv4 found
+    if !ipv4_addrs.is_empty() {
+        Ok(ipv4_addrs[0])
+    } else {
+        Err(TrackerError::Other("No IPv4 address found for tracker".into()))
+    }
 }
-
 //recive tracker response
 async fn recv_conn_id_response(socket: &UdpSocket) -> Result<ConnectionResponse, TrackerError> {
     let mut buf = [0_u8; 1024];

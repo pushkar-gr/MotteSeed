@@ -1,6 +1,6 @@
 use crate::core::tracker::tracker_error::TrackerError;
 use crate::core::tracker::tracker_factory::TrackerFactory;
-use crate::core::{peer::peer::Peer, torrent_stats::TorrentStats, tracker::tracker::Tracker};
+use crate::core::{torrent_stats::TorrentStats, tracker::tracker::Tracker};
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -81,10 +81,7 @@ impl<'a> TrackerManager<'a> {
     }
 
     //get all peers
-    pub async fn get_all_peers(&self) -> Vec<Peer> {
-        self.peer_pool
-            .iter()
-            .filter_map(|bytes| Peer::from_bytes(*bytes).ok())
-            .collect()
+    pub async fn get_all_peers(&self) -> Vec<[u8; 6]> {
+        self.peer_pool.iter().copied().collect()
     }
 }

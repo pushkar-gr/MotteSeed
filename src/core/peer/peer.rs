@@ -43,7 +43,7 @@ impl Peer {
         })
     }
 
-    pub async fn handshake(
+    async fn handshake(
         stream: &mut TcpStream,
         peer_id: &[u8; 20],
         info_hash: &[u8; 20],
@@ -52,9 +52,11 @@ impl Peer {
         let mut buf = [0_u8; 68];
 
         //pstrlen
-        buf[0..1].copy_from_slice(&19_u8.to_be_bytes());
+        buf[0] = 19;
         //pstr
         buf[1..20].copy_from_slice(b"BitTorrent protocol");
+        //reserved bytes
+        buf[20..28].fill(0);
         //info_hash after reserved 8 bytes
         buf[28..48].copy_from_slice(info_hash);
         //peer_id

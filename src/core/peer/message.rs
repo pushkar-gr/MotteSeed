@@ -1,5 +1,6 @@
 use bytes::{BufMut, Bytes, BytesMut};
 
+//message enum to represent message tyes in BitTorrent protocol
 #[derive(Debug)]
 pub enum Message {
     KeepAlive,
@@ -28,6 +29,7 @@ pub enum Message {
 }
 
 impl Message {
+    //serialize message to bytes
     pub fn serialize(&self) -> Bytes {
         let mut buf = BytesMut::new();
 

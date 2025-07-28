@@ -1,5 +1,4 @@
 use bytes::{BufMut, Bytes, BytesMut};
-use std::io;
 use thiserror::Error;
 
 //message enum to represent message tyes in BitTorrent protocol
@@ -208,9 +207,6 @@ impl Message {
 
 #[derive(Error, Debug)]
 pub enum MessageError {
-    #[error("IO Error: {0}")]
-    IO(#[from] io::Error),
-
     #[error("Invalid message type: {0}")]
     InvalidType(u8),
 

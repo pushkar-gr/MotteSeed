@@ -34,7 +34,12 @@ impl Message {
     //serialize message to bytes
     pub fn serialize(&self) -> Bytes {
         let mut buf = BytesMut::new();
+        self.serialize_into(&mut buf);
+        buf.freeze()
+    }
 
+    //serialize message to given buf
+    pub fn serialize_into(&self, buf: &mut BytesMut) {
         match self {
             Message::KeepAlive => buf.put_u32(0),
             Message::Choke => {
@@ -102,8 +107,6 @@ impl Message {
                 buf.put_u16(*port);
             }
         };
-
-        buf.freeze()
     }
 
     //deserialize bytes to Message

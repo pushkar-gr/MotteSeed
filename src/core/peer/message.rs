@@ -37,28 +37,28 @@ impl Message {
             Message::KeepAlive => buf.put_u32(0),
             Message::Choke => {
                 buf.put_u32(1);
-                buf.put_u32(0);
+                buf.put_u8(0);
             }
             Message::UnChoke => {
                 buf.put_u32(1);
-                buf.put_u32(1);
+                buf.put_u8(1);
             }
             Message::Interested => {
                 buf.put_u32(1);
-                buf.put_u32(2);
+                buf.put_u8(2);
             }
             Message::NotInterested => {
                 buf.put_u32(1);
-                buf.put_u32(3);
+                buf.put_u8(3);
             }
             Message::Have(piece) => {
                 buf.put_u32(5);
-                buf.put_u32(4);
+                buf.put_u8(4);
                 buf.put_u32(*piece);
             }
             Message::Bitfield(bytes) => {
                 buf.put_u32(1 + bytes.len() as u32);
-                buf.put_u32(5);
+                buf.put_u8(5);
                 buf.put_slice(bytes);
             }
             Message::Request {
@@ -67,7 +67,7 @@ impl Message {
                 length,
             } => {
                 buf.put_u32(13);
-                buf.put_u32(6);
+                buf.put_u8(6);
                 buf.put_u32(*index);
                 buf.put_u32(*begin);
                 buf.put_u32(*length);
@@ -78,7 +78,7 @@ impl Message {
                 block,
             } => {
                 buf.put_u32(9 + block.len() as u32);
-                buf.put_u32(7);
+                buf.put_u8(7);
                 buf.put_u32(*index);
                 buf.put_u32(*begin);
                 buf.put_slice(block);
@@ -89,14 +89,14 @@ impl Message {
                 length,
             } => {
                 buf.put_u32(13);
-                buf.put_u32(8);
+                buf.put_u8(8);
                 buf.put_u32(*index);
                 buf.put_u32(*begin);
                 buf.put_u32(*length);
             }
             Message::Port(port) => {
                 buf.put_u32(3);
-                buf.put_u32(9);
+                buf.put_u8(9);
                 buf.put_u16(*port);
             }
         };

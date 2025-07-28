@@ -110,7 +110,7 @@ impl Message {
     }
 
     //deserialize bytes to Message
-    pub fn deserialize(bytes: &[u8]) -> Result<Self, MessageError> {
+    pub fn deserialize(bytes: Box<[u8]>) -> Result<Self, MessageError> {
         //min 4 bytes for message length
         if bytes.len() < 4 {
             return Err(MessageError::MessageTooShort);
@@ -149,9 +149,8 @@ impl Message {
                 if bytes.len() < 5 + len as usize {
                     return Err(MessageError::MessageTooShort);
                 }
-                Ok(Message::Bitfield(Bytes::copy_from_slice(
-                    &bytes[5..(5 + len as usize)],
-                )))
+                let bytes_obj = Bytes::from(bytes);
+                Ok(Message::Bitfield(bytes_obj.slice(5..(5 + len as usize))))
             }
             6 => {
                 if bytes.len() != 17 {
@@ -174,7 +173,8 @@ impl Message {
                 }
                 let index = u32::from_be_bytes([bytes[5], bytes[6], bytes[7], bytes[8]]);
                 let begin = u32::from_be_bytes([bytes[9], bytes[10], bytes[11], bytes[12]]);
-                let block = Bytes::copy_from_slice(&bytes[13..(13 + len as usize)]);
+                let bytes_obj = Bytes::from(bytes);
+                let block = bytes_obj.slice(13..(13 + len as usize));
                 Ok(Message::Piece {
                     index,
                     begin,

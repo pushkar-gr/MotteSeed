@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 //struct to represent peer state
 #[derive(Debug)]
@@ -80,7 +80,7 @@ impl PeerState {
 
     //check if peer has piece
     pub fn has_piece(&self, index: u32) -> bool {
-        if let Some(bitfield) = self.bitfield {
+        if let Some(bitfield) = &self.bitfield {
             let byte_index = (index / 8) as usize;
             let bit_index = 7 - (index % 8) as usize;
 

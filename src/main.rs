@@ -23,8 +23,7 @@ async fn main() {
         100,
         1234,
     )
-    .await
-    .unwrap();
-    tracker_manager.poll_all_trackers().await.unwrap();
+    .await;
+    tracker_manager.poll_all_trackers().await;
     println!("{:?}", tracker_manager.get_all_peers().await);
 }

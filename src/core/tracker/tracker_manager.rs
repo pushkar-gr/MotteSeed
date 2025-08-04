@@ -1,4 +1,3 @@
-use crate::core::tracker::tracker_error::TrackerError;
 use crate::core::tracker::tracker_factory::TrackerFactory;
 use crate::core::{torrent_stats::TorrentStats, tracker::tracker::Tracker};
 
@@ -25,7 +24,7 @@ impl<'a> TrackerManager<'a> {
         peer_id: &'a [u8; 20],
         total_size: u64,
         port: u16,
-    ) -> Result<Self, TrackerError> {
+    ) -> Self {
         let stats = Arc::new(RwLock::new(TorrentStats::new(total_size)));
         let mut trackers = Vec::new();
         //create tracker from announce_url
@@ -58,18 +57,18 @@ impl<'a> TrackerManager<'a> {
                 }
             }
         }
-        Ok(Self {
+        Self {
             trackers: trackers,
             stats: stats,
             peer_pool: HashSet::new(),
             info_hash,
             peer_id,
             port,
-        })
+        }
     }
 
     //get peers from all trackers
-    pub async fn poll_all_trackers(&mut self) -> Result<(), TrackerError> {
+    pub async fn poll_all_trackers(&mut self) {
         for tracker in &mut self.trackers {
             if let Ok(peers) = tracker.get_peers().await {
                 for peer in peers {
@@ -77,7 +76,6 @@ impl<'a> TrackerManager<'a> {
                 }
             }
         }
-        Ok(())
     }
 
     //get all peers

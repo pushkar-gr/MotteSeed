@@ -2,6 +2,7 @@ use crate::core::peer::peer_state::PeerState;
 
 use bytes::{Bytes, BytesMut};
 use std::net::SocketAddr;
+use thiserror::Error;
 use tokio::{net::TcpStream, sync::mpsc};
 
 //represents a connection to a peer
@@ -13,6 +14,36 @@ pub struct PeerConnection {
     to_manager: mpsc::Sender<PeerEvent>,
     from_manager: mpsc::Receiver<ManagerCommand>,
     buf: BytesMut, //buffer to read messages
+}
+
+impl PeerConnection {
+    pub async fn new(
+        ip: [u8; 6],
+        info_hash: &[u8; 20],
+        peer_id: &[u8; 20],
+        to_manager: mpsc::Sender<PeerEvent>,
+        from_manager: mpsc::Receiver<ManagerCommand>,
+    ) -> Result<Self, ConnectionError> {
+        //convert peer IP and port to socket address
+        let peer_addr = SocketAddr::new(
+            std::net::IpAddr::V4(std::net::Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3])),
+            u16::from_be_bytes([ip[4], ip[5]]),
+        );
+
+        //connect to peer
+        let stream = TcpStream::connect(peer_addr).await?;
+
+        let mut connection = Self {
+            peer_addr,
+            stream,
+            state: PeerState::new(),
+            to_manager,
+            from_manager,
+            buf: BytesMut::with_capacity(16384), //16KB buffer
+        };
+
+        Ok(connection)
+    }
 }
 
 //events sent from peer to manager
@@ -38,4 +69,10 @@ pub enum ManagerCommand {
     NotInterested,                                        //client not intrested in peer
     HavePiece(u32),                                       //client have piece
     Disconnect,                                           //disconnect peer connection
+}
+
+#[derive(Error, Debug)]
+pub enum ConnectionError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 }

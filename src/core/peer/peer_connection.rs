@@ -1,11 +1,13 @@
 use crate::core::peer::{
     handshake::{HandShakeError, handshake},
+    message::{Message, MessageError},
     peer_state::PeerState,
 };
 
 use bytes::{Bytes, BytesMut};
 use std::net::SocketAddr;
 use thiserror::Error;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{net::TcpStream, sync::mpsc};
 
 //represents a connection to a peer
@@ -52,6 +54,30 @@ impl PeerConnection {
 
         Ok(connection)
     }
+
+    //read message from peer
+    async fn read_message(&mut self) -> Result<Message, ConnectionError> {
+        //read length prefix (4 bytes)
+        let mut length_buf = [0u8; 4];
+        self.stream.read_exact(&mut length_buf).await?;
+        let length = u32::from_be_bytes(length_buf) as usize;
+
+        //resize buffer if required
+        if self.buf.capacity() < length {
+            self.buf.reserve(length);
+        }
+
+        //clear buffer and ensure it can hold the message
+        self.buf.clear();
+        unsafe {
+            self.buf.set_len(length);
+        }
+
+        //read message
+        self.stream.read_exact(&mut self.buf).await?;
+
+        Ok(Message::deserialize(&mut self.buf)?)
+    }
 }
 
 //events sent from peer to manager
@@ -86,4 +112,7 @@ pub enum ConnectionError {
 
     #[error("Handshake failed: {0}")]
     HandshakeFailed(#[from] HandShakeError),
+
+    #[error("Message error: {0}")]
+    Message(#[from] MessageError),
 }

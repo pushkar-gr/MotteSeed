@@ -1,6 +1,5 @@
-use crate::core::peer::peer_error::PeerError;
-
 use std::array::TryFromSliceError;
+use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -9,7 +8,7 @@ async fn handshake(
     stream: &mut TcpStream,
     peer_id: &[u8; 20],
     info_hash: &[u8; 20],
-) -> Result<[u8; 20], PeerError> {
+) -> Result<[u8; 20], HandShakeError> {
     //build handshake message
     let mut buf = [0_u8; 68];
 
@@ -32,14 +31,29 @@ async fn handshake(
 
     //verify response
     if buf[0] != 19 || &buf[1..20] != b"BitTorrent protocol" {
-        return Err(PeerError::InvalidHandShake);
+        return Err(HandShakeError::InvalidHandShake);
     }
     if &buf[28..48] != info_hash {
-        return Err(PeerError::InvalidInfoHash);
+        return Err(HandShakeError::InvalidInfoHash);
     }
 
     //return peer id
     Ok(buf[48..68]
         .try_into()
-        .map_err(|e: TryFromSliceError| PeerError::Other(e.into()))?)
+        .map_err(|e: TryFromSliceError| HandShakeError::Other(e.into()))?)
+}
+
+#[derive(Error, Debug)]
+pub enum HandShakeError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Invalid Handshake")]
+    InvalidHandShake,
+
+    #[error("Invalid InfoHash")]
+    InvalidInfoHash,
+
+    #[error("Error: {0}")]
+    Other(#[from] Box<dyn std::error::Error>),
 }

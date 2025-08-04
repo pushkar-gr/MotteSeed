@@ -29,13 +29,13 @@ pub struct PeerState {
 
 impl PeerState {
     //create new peer state
-    pub fn new() -> Self {
+    pub fn new(bitfield: Option<Bytes>) -> Self {
         Self {
             am_choking: true,
             am_interested: false,
             peer_choking: true,
             peer_interested: false,
-            bitfield: None,
+            bitfield: bitfield,
             requested_blocks: Vec::new(),
             downloaded: 0,
             uploaded: 0,

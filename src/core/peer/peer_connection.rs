@@ -23,6 +23,7 @@ impl PeerConnection {
     //create a new peer connection
     pub async fn new(
         ip: [u8; 6],
+        bitfield: Option<Bytes>,
         to_manager: mpsc::Sender<PeerEvent>,
         from_manager: mpsc::Receiver<ManagerCommand>,
         peer_id: &[u8; 20],
@@ -43,7 +44,7 @@ impl PeerConnection {
         let mut connection = Self {
             peer_addr,
             stream,
-            state: PeerState::new(),
+            state: PeerState::new(bitfield),
             to_manager,
             from_manager,
             buf: BytesMut::with_capacity(16384), //16KB buffer

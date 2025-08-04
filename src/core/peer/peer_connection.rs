@@ -1,4 +1,7 @@
-use crate::core::peer::peer_state::PeerState;
+use crate::core::peer::{
+    handshake::{HandShakeError, handshake},
+    peer_state::PeerState,
+};
 
 use bytes::{Bytes, BytesMut};
 use std::net::SocketAddr;
@@ -17,12 +20,13 @@ pub struct PeerConnection {
 }
 
 impl PeerConnection {
+    //create a new peer connection
     pub async fn new(
         ip: [u8; 6],
-        info_hash: &[u8; 20],
-        peer_id: &[u8; 20],
         to_manager: mpsc::Sender<PeerEvent>,
         from_manager: mpsc::Receiver<ManagerCommand>,
+        peer_id: &[u8; 20],
+        info_hash: &[u8; 20],
     ) -> Result<Self, ConnectionError> {
         //convert peer IP and port to socket address
         let peer_addr = SocketAddr::new(
@@ -31,7 +35,10 @@ impl PeerConnection {
         );
 
         //connect to peer
-        let stream = TcpStream::connect(peer_addr).await?;
+        let mut stream = TcpStream::connect(peer_addr).await?;
+
+        //perform handshake with peer
+        handshake(&mut stream, peer_id, info_hash).await?;
 
         let mut connection = Self {
             peer_addr,
@@ -75,4 +82,7 @@ pub enum ManagerCommand {
 pub enum ConnectionError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("Handshake failed: {0}")]
+    HandshakeFailed(#[from] HandShakeError),
 }

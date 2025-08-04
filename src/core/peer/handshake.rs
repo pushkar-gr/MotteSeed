@@ -4,7 +4,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 //perform handshake with peer and return peer_id if succuss
-async fn handshake(
+pub async fn handshake(
     stream: &mut TcpStream,
     peer_id: &[u8; 20],
     info_hash: &[u8; 20],

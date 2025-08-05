@@ -7,7 +7,7 @@ use crate::core::peer::{
 use bytes::{Bytes, BytesMut};
 use std::net::SocketAddr;
 use thiserror::Error;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::{io::AsyncReadExt, sync::mpsc::error::SendError};
 use tokio::{net::TcpStream, sync::mpsc};
 
 //represents a connection to a peer
@@ -78,17 +78,102 @@ impl PeerConnection {
 
         Ok(Message::deserialize(&mut self.buf)?)
     }
+
+    //handle emssage from peer
+    async fn handle_message(&mut self, message: Message) -> Result<(), ConnectionError> {
+        match message {
+            Message::KeepAlive => {
+                //do nothing for keep alive
+            }
+            Message::Choke => {
+                self.state.peer_choking = true;
+                self.to_manager.send(PeerEvent::PeerChoked).await?;
+            }
+            Message::UnChoke => {
+                self.state.peer_choking = false;
+                self.to_manager.send(PeerEvent::PeerUnchoked).await?;
+            }
+            Message::Interested => {
+                self.state.peer_interested = true;
+                self.to_manager.send(PeerEvent::PeerInterested).await?;
+            }
+            Message::NotInterested => {
+                self.state.peer_interested = false;
+                self.to_manager.send(PeerEvent::PeerNotInterested).await?;
+            }
+            Message::Have(index) => {
+                self.to_manager.send(PeerEvent::ReceivedHave(index)).await?;
+            }
+            Message::Bitfield(bytes) => {
+                self.to_manager
+                    .send(PeerEvent::ReceivedBitfield(bytes))
+                    .await?;
+            }
+            Message::Request {
+                index,
+                begin,
+                length,
+            } => {
+                self.to_manager
+                    .send(PeerEvent::RequestedBlock {
+                        index,
+                        begin,
+                        length,
+                    })
+                    .await?;
+            }
+            Message::Piece {
+                index,
+                begin,
+                block,
+            } => {
+                let len = block.len() as u64;
+                self.to_manager
+                    .send(PeerEvent::ReceivedPiece {
+                        index,
+                        begin,
+                        block,
+                    })
+                    .await?;
+                self.state.downloaded += len;
+                self.state.update_download_rate();
+                self.to_manager
+                    .send(PeerEvent::DownloadRate(self.state.download_rate))
+                    .await?;
+            }
+            Message::Cancel {
+                index,
+                begin,
+                length,
+            } => {
+                //todo
+            }
+            Message::Port(port) => {
+                //todo
+            }
+        };
+        Ok(())
+    }
 }
 
 //events sent from peer to manager
 pub enum PeerEvent {
-    ReceivedBitfield(Bytes), //received bitfield from peer
-    ReceivedHave(u32),       //received have messages from peer
-    ReceivedPiece { index: u32, begin: u32, data: Bytes }, //received piece from peer
     PeerChoked,              //peer choked client
     PeerUnchoked,            //peer unchoked client
     PeerInterested,          //peer intrested in client
     PeerNotInterested,       //peer not intrested in client
+    ReceivedHave(u32),       //received have messages from peer
+    ReceivedBitfield(Bytes), //received bitfield from peer
+    RequestedBlock {
+        index: u32,
+        begin: u32,
+        length: u32,
+    }, //peer requested a block
+    ReceivedPiece {
+        index: u32,
+        begin: u32,
+        block: Bytes,
+    }, //received piece from peer
     PeerDisconnected,        //peer disconnected from TCP connection
     DownloadRate(f64),       //download rate of peer
 }
@@ -115,4 +200,7 @@ pub enum ConnectionError {
 
     #[error("Message error: {0}")]
     Message(#[from] MessageError),
+
+    #[error("Error sending message to manager: {0}")]
+    SendError(#[from] SendError<PeerEvent>),
 }

@@ -7,7 +7,10 @@ use crate::core::peer::{
 use bytes::{Bytes, BytesMut};
 use std::net::SocketAddr;
 use thiserror::Error;
-use tokio::{io::AsyncReadExt, sync::mpsc::error::SendError};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    sync::mpsc::error::SendError,
+};
 use tokio::{net::TcpStream, sync::mpsc};
 
 //represents a connection to a peer
@@ -154,6 +157,50 @@ impl PeerConnection {
         };
         Ok(())
     }
+
+    //handle manager commands
+    async fn handle_manager_command(
+        &mut self,
+        command: ManagerCommand,
+    ) -> Result<(), ConnectionError> {
+        //convert ManagerCommand to Message
+        let message = match command {
+            ManagerCommand::KeepAlive => Message::KeepAlive,
+            ManagerCommand::Choke => Message::Choke,
+            ManagerCommand::Unchoke => Message::UnChoke,
+            ManagerCommand::Interested => Message::Interested,
+            ManagerCommand::NotInterested => Message::NotInterested,
+            ManagerCommand::HavePiece(index) => Message::Have(index),
+            ManagerCommand::RequestBlock {
+                index,
+                begin,
+                length,
+            } => Message::Request {
+                index,
+                begin,
+                length,
+            },
+            ManagerCommand::CancelBlock {
+                index,
+                begin,
+                length,
+            } => Message::Cancel {
+                index,
+                begin,
+                length,
+            },
+            ManagerCommand::Disconnect => {
+                //todo
+                return Ok(());
+            }
+        };
+        //convert message to bytes
+        message.serialize_into(&mut self.buf);
+        //write to stream
+        self.stream.write_all(&self.buf).await?;
+        self.stream.flush().await?;
+        Ok(())
+    }
 }
 
 //events sent from peer to manager
@@ -180,13 +227,14 @@ pub enum PeerEvent {
 
 //commands sent from manager to peer
 pub enum ManagerCommand {
-    RequestBlock { index: u32, begin: u32, length: u32 }, //request block from peer
-    CancelBlock { index: u32, begin: u32, length: u32 },  //cancle requested block
+    KeepAlive,
     Choke,                                                //choke peer
     Unchoke,                                              //unchoke peer
     Interested,                                           //client intrested in peer
     NotInterested,                                        //client not intrested in peer
     HavePiece(u32),                                       //client have piece
+    RequestBlock { index: u32, begin: u32, length: u32 }, //request block from peer
+    CancelBlock { index: u32, begin: u32, length: u32 },  //cancle requested block
     Disconnect,                                           //disconnect peer connection
 }
 

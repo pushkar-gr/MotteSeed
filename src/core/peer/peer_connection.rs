@@ -14,6 +14,7 @@ use tokio::{
 use tokio::{net::TcpStream, sync::mpsc};
 
 //represents a connection to a peer
+#[derive(Debug)]
 pub struct PeerConnection {
     peer_addr: SocketAddr, //ip address of peer
     stream: TcpStream,     //TCP stream
@@ -204,6 +205,7 @@ impl PeerConnection {
 }
 
 //events sent from peer to manager
+#[derive(Debug)]
 pub enum PeerEvent {
     PeerChoked,              //peer choked client
     PeerUnchoked,            //peer unchoked client
@@ -226,6 +228,7 @@ pub enum PeerEvent {
 }
 
 //commands sent from manager to peer
+#[derive(Debug)]
 pub enum ManagerCommand {
     KeepAlive,
     Choke,                                                //choke peer

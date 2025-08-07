@@ -230,7 +230,7 @@ impl PeerConnection {
             let buf = &mut self.buf;
             let stream = &mut self.stream;
 
-            tokio::select! {
+            select! {
                 //handle manager command
                 command = self.from_manager.recv() => {
                     match command {

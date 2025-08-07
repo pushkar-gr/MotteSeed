@@ -29,7 +29,7 @@ pub struct PeerConnection {
 impl PeerConnection {
     //create a new peer connection
     pub async fn new(
-        ip: [u8; 6],
+        ip: &[u8; 6],
         bitfield: Option<Bytes>,
         to_manager: mpsc::Sender<PeerEvent>,
         from_manager: mpsc::Receiver<ManagerCommand>,

@@ -209,14 +209,14 @@ impl PeerConnection {
 
     //share bitfield to peer
     async fn send_bitfield(&mut self) -> Result<(), ConnectionError> {
-        if let Some(bitfield) = &self.state.bitfield {
-            //create message
-            let message = Message::Bitfield(bitfield.clone());
-            //serialize message
-            message.serialize_into(&mut self.buf);
-            //send message to peer
-            self.stream.write_all(&self.buf).await?;
-        }
+        // if let Some(bitfield) = &self.state.bitfield {
+        //     //create message
+        //     let message = Message::Bitfield(bitfield.clone());
+        //     //serialize message
+        //     message.serialize_into(&mut self.buf);
+        //     //send message to peer
+        //     self.stream.write_all(&self.buf).await?;
+        // }
         Ok(())
     }
 

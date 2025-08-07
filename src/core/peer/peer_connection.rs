@@ -26,11 +26,10 @@ pub struct PeerConnection {
     buf: BytesMut, //buffer to read messages
 }
 
-impl PeerConnection {
+impl<'a> PeerConnection {
     //create a new peer connection
     pub async fn new(
         ip: &[u8; 6],
-        bitfield: Option<Bytes>,
         to_manager: mpsc::Sender<PeerEvent>,
         from_manager: mpsc::Receiver<ManagerCommand>,
         peer_id: &[u8; 20],
@@ -51,7 +50,7 @@ impl PeerConnection {
         let mut connection = Self {
             peer_addr,
             stream,
-            state: PeerState::new(bitfield),
+            state: PeerState::new(None),
             to_manager,
             from_manager,
             buf: BytesMut::with_capacity(16384), //16KB buffer
@@ -113,6 +112,7 @@ impl PeerConnection {
                 self.to_manager.send(PeerEvent::ReceivedHave(index)).await?;
             }
             Message::Bitfield(bytes) => {
+                self.state.bitfield = Some(bytes.clone());
                 self.to_manager
                     .send(PeerEvent::ReceivedBitfield(bytes))
                     .await?;
@@ -208,22 +208,22 @@ impl PeerConnection {
     }
 
     //share bitfield to peer
-    async fn send_bitfield(&mut self) -> Result<(), ConnectionError> {
-        // if let Some(bitfield) = &self.state.bitfield {
-        //     //create message
-        //     let message = Message::Bitfield(bitfield.clone());
-        //     //serialize message
-        //     message.serialize_into(&mut self.buf);
-        //     //send message to peer
-        //     self.stream.write_all(&self.buf).await?;
-        // }
+    async fn send_bitfield(&mut self, bitfield: Option<Bytes>) -> Result<(), ConnectionError> {
+        if let Some(bitfield) = bitfield {
+            //create message
+            let message = Message::Bitfield(bitfield);
+            //serialize message
+            message.serialize_into(&mut self.buf);
+            //send message to peer
+            self.stream.write_all(&self.buf).await?;
+        }
         Ok(())
     }
 
     //run the peer connection
-    pub async fn run(&mut self) -> Result<(), ConnectionError> {
+    pub async fn run(&mut self, bitfield: Option<Bytes>) -> Result<(), ConnectionError> {
         //share bitfield
-        self.send_bitfield().await?;
+        self.send_bitfield(bitfield).await?;
 
         loop {
             //borrow required parameters to avoid borrowing mutable self multipel times

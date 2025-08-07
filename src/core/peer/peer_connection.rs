@@ -9,6 +9,7 @@ use std::net::SocketAddr;
 use thiserror::Error;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
+    select,
     sync::mpsc::error::SendError,
 };
 use tokio::{net::TcpStream, sync::mpsc};
@@ -60,27 +61,30 @@ impl PeerConnection {
     }
 
     //read message from peer
-    async fn read_message(&mut self) -> Result<Message, ConnectionError> {
+    async fn read_message(
+        buf: &mut BytesMut,
+        stream: &mut TcpStream,
+    ) -> Result<Message, ConnectionError> {
         //read length prefix (4 bytes)
         let mut length_buf = [0u8; 4];
-        self.stream.read_exact(&mut length_buf).await?;
+        stream.read_exact(&mut length_buf).await?;
         let length = u32::from_be_bytes(length_buf) as usize;
 
         //resize buffer if required
-        if self.buf.capacity() < length {
-            self.buf.reserve(length);
+        if buf.capacity() < length {
+            buf.reserve(length);
         }
 
         //clear buffer and ensure it can hold the message
-        self.buf.clear();
+        buf.clear();
         unsafe {
-            self.buf.set_len(length);
+            buf.set_len(length);
         }
 
         //read message
-        self.stream.read_exact(&mut self.buf).await?;
+        stream.read_exact(buf).await?;
 
-        Ok(Message::deserialize(&mut self.buf)?)
+        Ok(Message::deserialize(buf)?)
     }
 
     //handle emssage from peer
@@ -200,6 +204,49 @@ impl PeerConnection {
         //write to stream
         self.stream.write_all(&self.buf).await?;
         self.stream.flush().await?;
+        Ok(())
+    }
+
+    //share bitfield to peer
+    async fn send_bitfield(&mut self) -> Result<(), ConnectionError> {
+        if let Some(bitfield) = &self.state.bitfield {
+            //create message
+            let message = Message::Bitfield(bitfield.clone());
+            //serialize message
+            message.serialize_into(&mut self.buf);
+            //send message to peer
+            self.stream.write_all(&self.buf).await?;
+        }
+        Ok(())
+    }
+
+    //run the peer connection
+    pub async fn run(&mut self) -> Result<(), ConnectionError> {
+        //share bitfield
+        self.send_bitfield().await?;
+
+        loop {
+            //borrow required parameters to avoid borrowing mutable self multipel times
+            let buf = &mut self.buf;
+            let stream = &mut self.stream;
+
+            tokio::select! {
+                //handle manager command
+                command = self.from_manager.recv() => {
+                    match command {
+                        Some(cmd) => self.handle_manager_command(cmd).await?,
+                        None => return Ok(()),
+                    }
+                }
+
+                //handle incoming messages from peer
+                result = Self::read_message(buf, stream) => {
+                    let message = result?;
+                    self.handle_message(message).await?;
+                }
+            }
+        }
+
         Ok(())
     }
 }

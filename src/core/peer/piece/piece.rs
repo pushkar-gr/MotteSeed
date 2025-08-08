@@ -14,6 +14,30 @@ pub struct Piece<'a> {
     pub priority: u8,                    //piece priority
 }
 
+impl<'a> Piece<'a> {
+    pub fn new(index: u32, length: u32, hash: &'a [u8; 20], block_size: u32) -> Self {
+        let mut blocks = HashMap::new();
+        let mut offset = 0;
+
+        //create blocks for the piece
+        while offset < length {
+            let block_length = std::cmp::min(block_size, length - offset);
+            blocks.insert(offset, Block::new(index, offset, block_length));
+            offset += block_length;
+        }
+
+        Self {
+            index,
+            length,
+            hash,
+            blocks,
+            state: PieceState::Missing,
+            block_size,
+            priority: 1, //default priority
+        }
+    }
+}
+
 //represents block state
 #[derive(Debug, Clone, PartialEq)]
 pub enum PieceState {

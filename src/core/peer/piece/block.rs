@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 //structure to represent a block
 #[derive(Debug)]
@@ -12,6 +12,8 @@ pub struct Block<'a> {
 }
 
 impl<'a> Block<'a> {
+    const TIMEOUT: Duration = Duration::from_secs(120);
+    //create new object
     pub fn new(index: u32, offset: u32, length: u32) -> Self {
         Self {
             index,
@@ -22,15 +24,46 @@ impl<'a> Block<'a> {
         }
     }
 
+    //check if block is compelte
     pub fn isComplete(&self) -> bool {
         matches!(self.state, BlockState::Received | BlockState::Written)
     }
 
+    //request block from peer
     pub fn request_from_peer(&mut self, peer_ip: &'a [u8; 6]) {
         self.state = BlockState::Requested {
             peer_ip,
             instant: Instant::now(),
         }
+    }
+
+    //calcle request from peer
+    pub fn cancle(&mut self) {
+        self.state = BlockState::Missing;
+    }
+
+    //reset request from peer if timout
+    pub fn reset(&mut self) -> bool {
+        if let BlockState::Requested { peer_ip, instant } = self.state {
+            if instant.elapsed() > Self::TIMEOUT {
+                self.cancle();
+                true;
+            }
+        }
+        false
+    }
+
+    //data received
+    pub fn receive_data(&mut self, bytes: Bytes) {
+        if bytes.len() as u32 == self.length {
+            self.data = Some(bytes);
+            self.state = BlockState::Received;
+        }
+    }
+
+    //mark block as written
+    pub fn mask_written(&mut self) {
+        self.state = BlockState::Written;
     }
 }
 

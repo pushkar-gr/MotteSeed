@@ -15,6 +15,7 @@ pub struct Piece<'a> {
 }
 
 impl<'a> Piece<'a> {
+    //create new object
     pub fn new(index: u32, length: u32, hash: &'a [u8; 20], block_size: u32) -> Self {
         let mut blocks = HashMap::new();
         let mut offset = 0;
@@ -35,6 +36,16 @@ impl<'a> Piece<'a> {
             block_size,
             priority: 1, //default priority
         }
+    }
+
+    //check if block is compelte
+    pub fn isComplete(&self) -> bool {
+        matches!(self.state, PieceState::Complete | PieceState::Written)
+    }
+
+    //check if all blocks are downloaded
+    pub fn is_fully_downloaded(&self) -> bool {
+        self.blocks.values().all(|block| block.is_complete())
     }
 }
 

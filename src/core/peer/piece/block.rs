@@ -25,7 +25,7 @@ impl<'a> Block<'a> {
     }
 
     //check if block is compelte
-    pub fn isComplete(&self) -> bool {
+    pub fn is_complete(&self) -> bool {
         matches!(self.state, BlockState::Received | BlockState::Written)
     }
 

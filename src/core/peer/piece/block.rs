@@ -37,14 +37,14 @@ impl<'a> Block<'a> {
     }
 
     //reset request from peer if timout
-    pub fn reset(&mut self) -> bool {
+    pub fn reset(&mut self) -> Option<&'a [u8; 6]> {
         if let BlockState::Requested { peer_ip, instant } = self.state {
             if instant.elapsed() > Self::TIMEOUT {
                 self.cancle();
-                true;
+                return Some(peer_ip);
             }
         }
-        false
+        None
     }
 
     //data received

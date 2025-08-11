@@ -1,3 +1,5 @@
+use bytes::Bytes;
+
 use crate::core::peer::piece::block::Block;
 
 use std::collections::HashMap;
@@ -46,6 +48,16 @@ impl<'a> Piece<'a> {
     //check if all blocks are downloaded
     pub fn is_fully_downloaded(&self) -> bool {
         self.blocks.values().all(|block| block.is_complete())
+    }
+
+    //receive block from peer
+    pub fn receive_block(&mut self, offset: u32, data: Bytes) -> bool {
+        if let Some(block) = self.blocks.get_mut(&offset) {
+            block.receive_data(data);
+            true
+        } else {
+            false
+        }
     }
 }
 

@@ -132,6 +132,7 @@ impl<'a> Piece<'a> {
 
         reset_ip
     }
+
     //check if block is compelte
     pub fn is_complete(&self) -> bool {
         matches!(self.state, PieceState::Complete | PieceState::Written)

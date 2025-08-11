@@ -7,7 +7,6 @@ pub struct Block<'a> {
     pub index: u32,  //index of the piece block belongs to
     pub offset: u32, //offset of block in the piece
     pub length: u32, //lenght of data
-    // pub data: Option<Bytes>,   //data store in bytes
     pub state: BlockState<'a>, //block state
 }
 

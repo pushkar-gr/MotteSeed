@@ -105,6 +105,11 @@ impl<'a> Piece<'a> {
         }
     }
 
+    //mark block as written
+    pub fn mask_written(&mut self) {
+        self.state = PieceState::Written;
+    }
+
     //check if block is compelte
     pub fn is_complete(&self) -> bool {
         matches!(self.state, PieceState::Complete | PieceState::Written)

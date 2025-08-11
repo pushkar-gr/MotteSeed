@@ -23,11 +23,6 @@ impl<'a> Block<'a> {
         }
     }
 
-    //check if block is compelte
-    pub fn is_complete(&self) -> bool {
-        matches!(self.state, BlockState::Received(_) | BlockState::Written)
-    }
-
     //request block from peer
     pub fn request_from_peer(&mut self, peer_ip: &'a [u8; 6]) {
         self.state = BlockState::Requested {
@@ -57,6 +52,11 @@ impl<'a> Block<'a> {
         if bytes.len() as u32 == self.length {
             self.state = BlockState::Received(bytes);
         }
+    }
+
+    //check if block is compelte
+    pub fn is_complete(&self) -> bool {
+        matches!(self.state, BlockState::Received(_) | BlockState::Written)
     }
 
     //mark block as written

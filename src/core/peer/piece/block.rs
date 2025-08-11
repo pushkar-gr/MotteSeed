@@ -4,10 +4,10 @@ use std::time::{Duration, Instant};
 //structure to represent a block
 #[derive(Debug)]
 pub struct Block<'a> {
-    pub index: u32,            //index of the piece block belongs to
-    pub offset: u32,           //offset of block in the piece
-    pub length: u32,           //lenght of data
-    pub data: Option<Bytes>,   //data store in bytes
+    pub index: u32,  //index of the piece block belongs to
+    pub offset: u32, //offset of block in the piece
+    pub length: u32, //lenght of data
+    // pub data: Option<Bytes>,   //data store in bytes
     pub state: BlockState<'a>, //block state
 }
 
@@ -19,14 +19,13 @@ impl<'a> Block<'a> {
             index,
             offset,
             length,
-            data: None,
             state: BlockState::Missing,
         }
     }
 
     //check if block is compelte
     pub fn is_complete(&self) -> bool {
-        matches!(self.state, BlockState::Received | BlockState::Written)
+        matches!(self.state, BlockState::Received(_) | BlockState::Written)
     }
 
     //request block from peer
@@ -56,8 +55,7 @@ impl<'a> Block<'a> {
     //data received
     pub fn receive_data(&mut self, bytes: Bytes) {
         if bytes.len() as u32 == self.length {
-            self.data = Some(bytes);
-            self.state = BlockState::Received;
+            self.state = BlockState::Received(bytes);
         }
     }
 
@@ -75,6 +73,6 @@ pub enum BlockState<'a> {
         peer_ip: &'a [u8; 6],
         instant: Instant,
     }, //block requested from a peer
-    Received, //block received from a peer
+    Received(Bytes), //block received from a peer
     Written, //block written to disk
 }

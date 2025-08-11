@@ -1,7 +1,7 @@
-use bytes::Bytes;
+use crate::core::peer::piece::block::{Block, BlockState};
 
-use crate::core::peer::piece::block::Block;
-
+use bytes::{BufMut, Bytes, BytesMut};
+use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 
 //structure to represent a piece
@@ -40,14 +40,53 @@ impl<'a> Piece<'a> {
         }
     }
 
-    //check if block is compelte
-    pub fn isComplete(&self) -> bool {
-        matches!(self.state, PieceState::Complete | PieceState::Written)
+    //request block from peer
+    pub fn request_from_peer(&mut self, offset: u32, peer_ip: &'a [u8; 6]) {
+        if let Some(block) = self.blocks.get_mut(&offset) {
+            block.request_from_peer(peer_ip);
+        }
     }
 
     //check if all blocks are downloaded
     pub fn is_fully_downloaded(&self) -> bool {
         self.blocks.values().all(|block| block.is_complete())
+    }
+
+    //verify piece with SHA1 hash
+    pub fn verify(&mut self) -> bool {
+        let mut buf = BytesMut::with_capacity(self.length as usize);
+
+        //combine blocks to get piece data
+        let mut offset = 0;
+        while offset < self.length {
+            if let Some(block) = self.blocks.get(&offset) {
+                if let BlockState::Received(bytes) = &block.state {
+                    buf.put(bytes.clone());
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        //calculate hash
+        let mut hasher = Sha1::new();
+        hasher.update(&buf);
+        let calculated_hash = hasher.finalize();
+
+        //check hash
+        if calculated_hash.as_slice() == self.hash {
+            self.state = PieceState::Complete;
+            true
+        } else {
+            //mark all block as missing
+            for block in self.blocks.values_mut() {
+                block.state = BlockState::Missing;
+            }
+            self.state = PieceState::Missing;
+            false
+        }
     }
 
     //receive block from peer
@@ -58,6 +97,11 @@ impl<'a> Piece<'a> {
         } else {
             false
         }
+    }
+
+    //check if block is compelte
+    pub fn is_complete(&self) -> bool {
+        matches!(self.state, PieceState::Complete | PieceState::Written)
     }
 }
 

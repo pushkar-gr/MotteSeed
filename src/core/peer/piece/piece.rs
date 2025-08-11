@@ -62,6 +62,7 @@ impl<'a> Piece<'a> {
             if let Some(block) = self.blocks.get(&offset) {
                 if let BlockState::Received(bytes) = &block.state {
                     buf.put(bytes.clone());
+                    offset += self.block_size;
                 } else {
                     return false;
                 }
@@ -93,6 +94,11 @@ impl<'a> Piece<'a> {
     pub fn receive_block(&mut self, offset: u32, data: Bytes) -> bool {
         if let Some(block) = self.blocks.get_mut(&offset) {
             block.receive_data(data);
+
+            if self.is_fully_downloaded() {
+                self.verify();
+            }
+
             true
         } else {
             false

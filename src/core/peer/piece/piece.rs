@@ -83,7 +83,7 @@ impl<'a> Piece<'a> {
         } else {
             //mark all block as missing
             for block in self.blocks.values_mut() {
-                block.state = BlockState::Missing;
+                block.cancle();
             }
             self.state = PieceState::Missing;
             false
@@ -110,6 +110,28 @@ impl<'a> Piece<'a> {
         self.state = PieceState::Written;
     }
 
+    //get next missing block offset
+    pub fn get_next_missing_block(&self) -> Option<u32> {
+        for (offset, block) in &self.blocks {
+            if !block.is_complete() {
+                return Some(*offset);
+            }
+        }
+        None
+    }
+
+    //reset request for blocks
+    pub fn reset_timeout_requests(&mut self) -> HashMap<u32, &'a [u8; 6]> {
+        let mut reset_ip = HashMap::new();
+
+        for (offset, block) in &mut self.blocks {
+            if let Some(ip) = block.reset() {
+                reset_ip.insert(*offset, ip);
+            }
+        }
+
+        reset_ip
+    }
     //check if block is compelte
     pub fn is_complete(&self) -> bool {
         matches!(self.state, PieceState::Complete | PieceState::Written)

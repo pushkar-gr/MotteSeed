@@ -203,6 +203,7 @@ impl Message {
     }
 }
 
+//custom error enum for message parsing
 #[derive(Error, Debug)]
 pub enum MessageError {
     #[error("Invalid message type: {0}")]

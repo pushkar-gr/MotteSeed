@@ -43,6 +43,7 @@ pub async fn handshake(
         .map_err(|e: TryFromSliceError| HandShakeError::Other(e.into()))?)
 }
 
+//custom error enum for handshake
 #[derive(Error, Debug)]
 pub enum HandShakeError {
     #[error("IO error: {0}")]

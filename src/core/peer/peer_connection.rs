@@ -288,6 +288,7 @@ pub enum ManagerCommand {
     Disconnect,                                           //disconnect peer connection
 }
 
+//custom error enum for connection errors
 #[derive(Error, Debug)]
 pub enum ConnectionError {
     #[error("IO error: {0}")]

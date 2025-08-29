@@ -1,9 +1,11 @@
-use crate::core::torrent::torrent::FileDetails;
+use crate::core::torrent::torrent::{FileDetails, FileEntry};
 
+use bytes::Bytes;
 use std::fs::{self, File, OpenOptions};
-use std::io;
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use thiserror::Error;
+use tokio::sync::Mutex;
 
 //structure to represent file system
 #[derive(Debug)]
@@ -11,7 +13,7 @@ pub struct DiskIO<'a> {
     base_path: PathBuf,                //base path of the files
     file_details: &'a FileDetails<'a>, //file details (single file/ multi file)
     piece_length: u32,                 //length of each piece
-    files: Vec<File>,                  //opened files
+    files: Vec<Mutex<File>>,           //opened files
     total_size: u64,                   //total size
 }
 
@@ -39,7 +41,7 @@ impl<'a> DiskIO<'a> {
 
                 file.set_len(*length)?;
 
-                (vec![file], *length)
+                (vec![Mutex::new(file)], *length)
             }
             //multi files
             FileDetails::MultiFile { files } => {
@@ -70,7 +72,7 @@ impl<'a> DiskIO<'a> {
 
                     file.set_len(file_entry.length)?;
 
-                    open_files.push(file);
+                    open_files.push(Mutex::new(file));
                     total_size += file_entry.length;
                 }
 
@@ -86,6 +88,90 @@ impl<'a> DiskIO<'a> {
             total_size,
         })
     }
+
+    //write a piece to disk
+    pub async fn write_piece(&self, piece_index: u32, data: &Bytes) -> Result<(), DiskError> {
+        //get offset and verify
+        let piece_offset = piece_index * self.piece_length;
+
+        if piece_offset as u64 >= self.total_size {
+            return Err(DiskError::InvalidPiece(format!(
+                "Piece index out of bounds: {}",
+                piece_index
+            )));
+        }
+
+        match self.file_details {
+            //write to single file
+            FileDetails::SingleFile { .. } => {
+                let mut file = self.files[0].lock().await;
+                file.seek(SeekFrom::Start(piece_offset as u64))?;
+                file.write_all(data)?;
+            }
+            //write for multiple files
+            FileDetails::MultiFile { files } => {
+                self.write_multi_file_piece(piece_index, data, files)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    //write piece to multi file
+    async fn write_multi_file_piece(
+        &self,
+        piece_index: u32,
+        data: &Bytes,
+        file_entries: &Vec<FileEntry<'a>>,
+    ) -> Result<(), DiskError> {
+        //calculate offset
+        let piece_offset = (piece_index * self.piece_length) as u64;
+        let mut remaining = data.len();
+        let mut data_offset = 0;
+
+        //get fil index and file offset
+        let mut current_offset = 0;
+        let mut file_index = 0;
+
+        while file_index < file_entries.len() {
+            let file_length = file_entries[file_index].length;
+
+            if current_offset + file_length > piece_offset {
+                break;
+            }
+
+            current_offset += file_length;
+            file_index += 1;
+        }
+
+        if file_index >= file_entries.len() {
+            return Err(DiskError::InvalidPiece(format!(
+                "Piece index out of bounds: {}",
+                piece_index
+            )));
+        }
+
+        let mut file_offset = piece_offset - current_offset;
+
+        //write all bytes to files
+        while remaining > 0 && file_index < file_entries.len() {
+            let file_length = file_entries[file_index].length;
+            let length_to_write = std::cmp::min(remaining, (file_length - file_offset) as usize)
+
+            let mut file = self.files[file_index].lock().await;
+            file.seek(SeekFrom::Start(piece_offset))?;
+            file.write_all(&data[data_offset..data_offset + length_to_write])?;
+
+            data_offset += length_to_write;
+            remaining -= length_to_write;
+
+            file_index += 1;
+            file_offset = 0;
+        }
+
+        Ok(())
+    }
 }
 
 //custom error enum for disk operations
@@ -96,6 +182,9 @@ pub enum DiskError {
 
     #[error("Path Error: {0}")]
     PathError(String),
+
+    #[error("Invalid piece: {0}")]
+    InvalidPiece(String),
 
     #[error("Error: {0}")]
     Other(#[from] Box<dyn std::error::Error>),

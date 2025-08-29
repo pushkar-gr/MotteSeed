@@ -157,7 +157,7 @@ impl<'a> DiskIO<'a> {
         //write all bytes to files
         while remaining > 0 && file_index < file_entries.len() {
             let file_length = file_entries[file_index].length;
-            let length_to_write = std::cmp::min(remaining, (file_length - file_offset) as usize)
+            let length_to_write = std::cmp::min(remaining, (file_length - file_offset) as usize);
 
             let mut file = self.files[file_index].lock().await;
             file.seek(SeekFrom::Start(piece_offset))?;
@@ -171,6 +171,53 @@ impl<'a> DiskIO<'a> {
         }
 
         Ok(())
+    }
+
+    //read piece from file
+    pub async fn read_piece(&self, piece_index: u32) -> Result<Bytes, DiskError> {
+        //get offset and verify
+        let piece_offset = (piece_index * self.piece_length) as u64;
+
+        if piece_offset as u64 >= self.total_size {
+            return Err(DiskError::InvalidPiece(format!(
+                "Piece index out of bounds: {}",
+                piece_index
+            )));
+        }
+
+        //get piece size
+        let piece_size = if ((piece_index + 1) * self.piece_length) as u64 > self.total_size {
+            self.total_size - piece_offset
+        } else {
+            self.piece_length as u64
+        };
+
+        let mut buffer = vec![0u8; piece_size as usize];
+
+        match &*self.file_details {
+            //read from single file
+            FileDetails::SingleFile { .. } => {
+                let mut file = self.files[0].lock().await;
+                file.seek(SeekFrom::Start(piece_offset))?;
+                file.read_exact(&mut buffer)?;
+            }
+            //read from multi file
+            FileDetails::MultiFile { files } => {
+                self.read_multi_file_piece(piece_index, &mut buffer, files)
+                    .await?;
+            }
+        }
+
+        Ok(Bytes::from(buffer))
+    }
+
+    async fn read_multi_file_piece(
+        &self,
+        piece_index: u32,
+        buffer: &mut [u8],
+        file_entries: &Vec<FileEntry<'a>>,
+    ) -> Result<(), DiskError> {
+        todo!();
     }
 }
 

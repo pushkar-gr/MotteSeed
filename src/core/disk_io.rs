@@ -211,13 +211,59 @@ impl<'a> DiskIO<'a> {
         Ok(Bytes::from(buffer))
     }
 
+    //read piece from files
     async fn read_multi_file_piece(
         &self,
         piece_index: u32,
         buffer: &mut [u8],
         file_entries: &Vec<FileEntry<'a>>,
     ) -> Result<(), DiskError> {
-        todo!();
+        //calculate offset
+        let piece_offset = (piece_index * self.piece_length) as u64;
+        let mut remaining = buffer.len();
+        let mut data_offset = 0;
+
+        //get fil index and file offset
+        let mut current_offset = 0;
+        let mut file_index = 0;
+
+        while file_index < file_entries.len() {
+            let file_length = file_entries[file_index].length;
+
+            if current_offset + file_length > piece_offset {
+                break;
+            }
+
+            current_offset += file_length;
+            file_index += 1;
+        }
+
+        if file_index >= file_entries.len() {
+            return Err(DiskError::InvalidPiece(format!(
+                "Piece index out of bounds: {}",
+                piece_index
+            )));
+        }
+
+        let mut file_offset = piece_offset - current_offset;
+
+        //write all bytes to files
+        while remaining > 0 && file_index < file_entries.len() {
+            let file_length = file_entries[file_index].length;
+            let bytes_to_read = std::cmp::min(remaining, (file_length - file_offset) as usize);
+
+            let mut file = self.files[file_index].lock().await;
+            file.seek(SeekFrom::Start(file_offset))?;
+            file.read_exact(&mut buffer[data_offset..data_offset + bytes_to_read])?;
+
+            data_offset += bytes_to_read;
+            remaining -= bytes_to_read;
+
+            file_index += 1;
+            file_offset = 0;
+        }
+
+        Ok(())
     }
 }
 

@@ -26,7 +26,7 @@ use crate::core::tracker::tracker_manager::TrackerManager;
 async fn main() {
     let args: Vec<String> = env::args().collect();
     let file_path = args[1].clone();
-    let torrent_file = TorrentFile::from_file(&Path::new(&file_path)).unwrap();
+    let torrent_file = TorrentFile::from_file(Path::new(&file_path)).unwrap();
     let peer_id = &get_peer_id();
     let mut tracker_manager = TrackerManager::new(
         torrent_file.torrent.announce,

@@ -196,7 +196,7 @@ impl AnnounceResponseUDP {
         //get peers
         let peer_data = &data[20..];
 
-        if peer_data.len() % 6 != 0 {
+        if !peer_data.len().is_multiple_of(6) {
             return Err(TrackerError::Other("Invalid peer data length".into()));
         }
 
@@ -258,7 +258,7 @@ async fn get_connection_id(
         socket.send_to(&request_message, server_addr).await?;
 
         //wait for response
-        match timeout(CONNECTION_TIMEOUT, recv_conn_id_response(&socket)).await {
+        match timeout(CONNECTION_TIMEOUT, recv_conn_id_response(socket)).await {
             Ok(Ok(response)) => {
                 //verify transaction id
                 if response.action == 0 && response.transaction_id == transaction_id {
@@ -357,7 +357,7 @@ async fn announce<'a>(
         socket.send_to(&request_message, server_addr).await?;
 
         //wait for response
-        match timeout(CONNECTION_TIMEOUT, recv_announce_response(&socket)).await {
+        match timeout(CONNECTION_TIMEOUT, recv_announce_response(socket)).await {
             Ok(Ok(response)) => {
                 //verify transaction id
                 if response.action == 1 && response.transaction_id == transaction_id {

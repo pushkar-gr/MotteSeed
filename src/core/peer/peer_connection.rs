@@ -31,7 +31,7 @@ pub struct PeerConnection {
     buf: BytesMut, //buffer to read messages
 }
 
-impl<'a> PeerConnection {
+impl PeerConnection {
     /// Creates a new peer connection.
     ///
     /// Connects to the peer, performs handshake, and initializes the connection.
@@ -58,7 +58,7 @@ impl<'a> PeerConnection {
         //perform handshake with peer
         handshake(&mut stream, peer_id, info_hash).await?;
 
-        let mut connection = Self {
+        let connection = Self {
             peer_addr,
             stream,
             state: PeerState::new(None),
@@ -257,8 +257,6 @@ impl<'a> PeerConnection {
                 }
             }
         }
-
-        Ok(())
     }
 }
 

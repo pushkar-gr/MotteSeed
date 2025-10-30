@@ -62,8 +62,8 @@ impl<'a> TrackerManager<'a> {
             }
         }
         Self {
-            trackers: trackers,
-            stats: stats,
+            trackers,
+            stats,
             peer_pool: HashSet::new(),
             info_hash,
             peer_id,

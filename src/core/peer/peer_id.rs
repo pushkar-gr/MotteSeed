@@ -27,8 +27,8 @@ static PEER_ID: Lazy<[u8; 20]> = Lazy::new(|| {
 
     //random bytes
     let mut rng = rng();
-    for i in 8..20 {
-        id[i] = rng.random_range(33..=126);
+    for i in id.iter_mut().skip(8) {
+        *i = rng.random_range(33..=126);
     }
 
     id

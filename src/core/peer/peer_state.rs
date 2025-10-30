@@ -40,7 +40,7 @@ impl PeerState {
             am_interested: false,
             peer_choking: true,
             peer_interested: false,
-            bitfield: bitfield,
+            bitfield,
             requested_blocks: Vec::new(),
             downloaded: 0,
             uploaded: 0,

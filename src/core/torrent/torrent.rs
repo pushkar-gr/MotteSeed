@@ -272,7 +272,7 @@ impl<'a> TorrentFile<'a> {
     ///
     /// Returns `ReadTorrentError` if decoding fails.
     pub fn from_file(file: &Path) -> Result<Self, ReadTorrentError> {
-        let content = fs::read(file).map_err(ReadTorrentError::IOError)?;
+        let content = fs::read(file).map_err(ReadTorrentError::IO)?;
         Self::from_bytes(content)
     }
 }

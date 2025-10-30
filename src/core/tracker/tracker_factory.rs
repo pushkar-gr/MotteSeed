@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Tracker tyes.
+#[warn(clippy::upper_case_acronyms)]
 pub enum TrackerType {
     HTTP,
     UDP,

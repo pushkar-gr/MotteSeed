@@ -45,6 +45,7 @@ impl<'a> DiskIO<'a> {
                     .read(true)
                     .write(true)
                     .create(true)
+                    .truncate(false)
                     .open(&file_path)?;
 
                 file.set_len(*length)?;
@@ -76,6 +77,7 @@ impl<'a> DiskIO<'a> {
                         .read(true)
                         .write(true)
                         .create(true)
+                        .truncate(false)
                         .open(&file_path)?;
 
                     file.set_len(file_entry.length)?;
@@ -135,6 +137,7 @@ impl<'a> DiskIO<'a> {
     /// # Error
     ///
     /// Returns `DiskError` if writing fails.
+    #[warn(clippy::ptr_arg)]
     async fn write_multi_file_piece(
         &self,
         piece_index: u32,
@@ -198,7 +201,7 @@ impl<'a> DiskIO<'a> {
         //get offset and verify
         let piece_offset = (piece_index * self.piece_length) as u64;
 
-        if piece_offset as u64 >= self.total_size {
+        if piece_offset >= self.total_size {
             return Err(DiskError::InvalidPiece(format!(
                 "Piece index out of bounds: {}",
                 piece_index
@@ -214,7 +217,7 @@ impl<'a> DiskIO<'a> {
 
         let mut buffer = vec![0u8; piece_size as usize];
 
-        match &*self.file_details {
+        match self.file_details {
             //read from single file
             FileDetails::SingleFile { .. } => {
                 let mut file = self.files[0].lock().await;
@@ -236,6 +239,7 @@ impl<'a> DiskIO<'a> {
     /// # Error
     ///
     /// Returns `DiskError` if reading fails.
+    #[warn(clippy::ptr_arg)]
     async fn read_multi_file_piece(
         &self,
         piece_index: u32,

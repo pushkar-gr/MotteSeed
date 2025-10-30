@@ -10,13 +10,13 @@ use thiserror::Error;
 pub enum ReadTorrentError {
     //variant for streaming errors with a display message
     #[error("Streaming error: {0}")]
-    StreamingError(#[from] BStreamingError),
+    Streaming(#[from] BStreamingError),
 
     //key not found error
     #[error("Key not found: {0}")]
-    BencodeDecodableError(#[from] BencodeDecodableError),
+    BencodeDecodable(#[from] BencodeDecodableError),
 
     //io error with a display message
     #[error("IO error: {0}")]
-    IOError(#[from] std::io::Error),
+    IO(#[from] std::io::Error),
 }

@@ -50,9 +50,9 @@ pub async fn handshake(
     }
 
     //return peer id
-    Ok(buf[48..68]
+    buf[48..68]
         .try_into()
-        .map_err(|e: TryFromSliceError| HandShakeError::Other(e.into()))?)
+        .map_err(|e: TryFromSliceError| HandShakeError::Other(e.into()))
 }
 
 /// Errors that can occur during the handshake process.

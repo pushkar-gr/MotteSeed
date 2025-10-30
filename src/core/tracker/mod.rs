@@ -1,3 +1,7 @@
+//! Tracker communication module.
+//!
+//! Handles HTTP and UDP tracker protocols for peer discovery.
+
 pub mod tracker;
 pub mod tracker_error;
 pub mod tracker_factory;

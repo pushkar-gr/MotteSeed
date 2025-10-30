@@ -1,3 +1,8 @@
+//! Peer connection management.
+//!
+//! Handles establishing and maintaining TCP connections with peers, processing incoming and
+//! outgoing messages.
+
 use crate::core::peer::{
     handshake::{HandShakeError, handshake},
     message::{Message, MessageError},
@@ -14,7 +19,7 @@ use tokio::{
 };
 use tokio::{net::TcpStream, sync::mpsc};
 
-//represents a connection to a peer
+/// Represents a connection to a peer.
 #[derive(Debug)]
 pub struct PeerConnection {
     peer_addr: SocketAddr, //ip address of peer
@@ -27,7 +32,13 @@ pub struct PeerConnection {
 }
 
 impl<'a> PeerConnection {
-    //create a new peer connection
+    /// Creates a new peer connection.
+    ///
+    /// Connects to the peer, performs handshake, and initializes the connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConnectionError` if connection or handshake fails.
     pub async fn new(
         ip: &[u8; 6],
         to_manager: mpsc::Sender<PeerEvent>,
@@ -59,7 +70,7 @@ impl<'a> PeerConnection {
         Ok(connection)
     }
 
-    //read message from peer
+    /// Reads a message from the peer.
     async fn read_message(
         buf: &mut BytesMut,
         stream: &mut TcpStream,
@@ -86,7 +97,7 @@ impl<'a> PeerConnection {
         Ok(Message::deserialize(buf)?)
     }
 
-    //handle emssage from peer
+    /// Handles a emssage from the peer.
     async fn handle_message(&mut self, message: Message) -> Result<(), ConnectionError> {
         match message {
             Message::KeepAlive => {
@@ -163,7 +174,7 @@ impl<'a> PeerConnection {
         Ok(())
     }
 
-    //handle manager commands
+    /// Handles a manager command from the manager.
     async fn handle_manager_command(
         &mut self,
         command: ManagerCommand,
@@ -207,7 +218,7 @@ impl<'a> PeerConnection {
         Ok(())
     }
 
-    //share bitfield to peer
+    /// Shares the bitfield with the peer.
     async fn send_bitfield(&mut self, bitfield: Option<Bytes>) -> Result<(), ConnectionError> {
         if let Some(bitfield) = bitfield {
             //create message
@@ -220,7 +231,7 @@ impl<'a> PeerConnection {
         Ok(())
     }
 
-    //run the peer connection
+    /// Runs the peer connection loop.
     pub async fn run(&mut self, bitfield: Option<Bytes>) -> Result<(), ConnectionError> {
         //share bitfield
         self.send_bitfield(bitfield).await?;
@@ -251,7 +262,7 @@ impl<'a> PeerConnection {
     }
 }
 
-//events sent from peer to manager
+/// Events sent from peer to manager.
 #[derive(Debug)]
 pub enum PeerEvent {
     PeerChoked,              //peer choked client
@@ -274,7 +285,7 @@ pub enum PeerEvent {
     DownloadRate(f64),       //download rate of peer
 }
 
-//commands sent from manager to peer
+/// Commands sent from manager to peer.
 #[derive(Debug)]
 pub enum ManagerCommand {
     KeepAlive,
@@ -288,7 +299,7 @@ pub enum ManagerCommand {
     Disconnect,                                           //disconnect peer connection
 }
 
-//custom error enum for connection errors
+/// Errors that can occur during peer connection.
 #[derive(Error, Debug)]
 pub enum ConnectionError {
     #[error("IO error: {0}")]

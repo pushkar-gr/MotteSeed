@@ -1,9 +1,21 @@
+//! Handshake module for establishing peer connections.
+//!
+//! Implements the BitTorrent protocol handshake to authenticate and connect to peers.
+
 use std::array::TryFromSliceError;
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-//perform handshake with peer and return peer_id if succuss
+/// Performs handshake with peer and return peer's ID if succussful.
+///
+/// Builds a handshake message with the protocol string, reserves bytes, info hash, and peer ID,
+/// sends it, receives the response, and verifies it.
+///
+/// # Errors
+///
+/// Returns `HandShakeError` if the handshake fails due to I/O issues, invalid protocol, or
+/// mismatched info hash.
 pub async fn handshake(
     stream: &mut TcpStream,
     peer_id: &[u8; 20],
@@ -43,7 +55,7 @@ pub async fn handshake(
         .map_err(|e: TryFromSliceError| HandShakeError::Other(e.into()))?)
 }
 
-//custom error enum for handshake
+/// Errors that can occur during the handshake process.
 #[derive(Error, Debug)]
 pub enum HandShakeError {
     #[error("IO error: {0}")]

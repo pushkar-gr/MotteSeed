@@ -1,7 +1,12 @@
+//! Peer state management.
+//!
+//! Tracks the state of peer connection, including choking, intrest, bitfield, download/upload
+//! states, and rates.
+
 use bytes::Bytes;
 use std::time::Instant;
 
-//struct to represent peer state
+/// Struct to represent peer state.
 #[derive(Debug)]
 pub struct PeerState {
     //choking state
@@ -28,7 +33,7 @@ pub struct PeerState {
 }
 
 impl PeerState {
-    //create new peer state
+    /// Creates a new peer state with default values.
     pub fn new(bitfield: Option<Bytes>) -> Self {
         Self {
             am_choking: true,
@@ -48,7 +53,7 @@ impl PeerState {
         }
     }
 
-    //update download rate
+    /// Updates the download rate based on elapsed time.
     pub fn update_download_rate(&mut self) {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_download_calc).as_secs_f64();
@@ -63,7 +68,7 @@ impl PeerState {
         }
     }
 
-    //update upload rate
+    /// Updates the upload rate based on elapsed time.
     pub fn update_upload_rate(&mut self) {
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_upload_calc).as_secs_f64();
@@ -78,7 +83,7 @@ impl PeerState {
         }
     }
 
-    //check if peer has piece
+    /// Checks if peer has a specific piece.
     pub fn has_piece(&self, index: u32) -> bool {
         if let Some(bitfield) = &self.bitfield {
             let byte_index = (index / 8) as usize;

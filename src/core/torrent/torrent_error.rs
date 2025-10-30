@@ -1,9 +1,11 @@
+//! Error types for torrent operations.
+
 use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
 use crate::util::errors::BStreamingError;
 
 use thiserror::Error;
 
-//custom error enum for reading torrent operations
+/// Custom error enum for reading torrent operations.
 #[derive(Error, Debug)]
 pub enum ReadTorrentError {
     //variant for streaming errors with a display message

@@ -1,3 +1,5 @@
+//! Tracker factory for creating HTTP or UDP trackers.
+
 use crate::core::{
     torrent_stats::TorrentStats,
     tracker::{
@@ -11,17 +13,17 @@ use crate::core::{
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-//tracker tyes (HTTP/UDP)
+/// Tracker tyes.
 pub enum TrackerType {
     HTTP,
     UDP,
 }
 
-//empty structs for TrackerFactory methods
+/// Factory for creating trackers.
 pub struct TrackerFactory;
 
 impl TrackerFactory {
-    //determine tracker type
+    /// Determines tracker type from URL.
     pub fn determine_type(url: &[u8]) -> TrackerType {
         if url.starts_with(b"udp://") {
             TrackerType::UDP
@@ -31,7 +33,7 @@ impl TrackerFactory {
         }
     }
 
-    //create a tracker
+    /// Creates a tracker based on URL.
     pub async fn create_tracker<'a>(
         announce_url: &'a [u8],
         info_hash: &'a [u8; 20],

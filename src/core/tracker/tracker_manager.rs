@@ -1,3 +1,7 @@
+//! Manager for multiple trackers.
+//!
+//! Aggregates peers from multiple trackers.
+
 use crate::core::tracker::tracker_factory::TrackerFactory;
 use crate::core::{torrent_stats::TorrentStats, tracker::tracker::Tracker};
 
@@ -5,7 +9,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-//manages trackers
+/// Manages trackers.
 pub struct TrackerManager<'a> {
     trackers: Vec<Box<dyn Tracker + 'a>>, //vector of trackers
     stats: Arc<RwLock<TorrentStats>>,     //tracker stats
@@ -16,7 +20,7 @@ pub struct TrackerManager<'a> {
 }
 
 impl<'a> TrackerManager<'a> {
-    //create a new tracker manager
+    /// Creates a new tracker manager.
     pub async fn new(
         announce_url: &'a [u8],
         announce_url_list: Option<&Vec<Vec<&'a [u8]>>>,
@@ -67,7 +71,7 @@ impl<'a> TrackerManager<'a> {
         }
     }
 
-    //get peers from all trackers
+    /// Gets peers from all trackers.
     pub async fn poll_all_trackers(&mut self) {
         for tracker in &mut self.trackers {
             if let Ok(peers) = tracker.get_peers().await {
@@ -78,7 +82,7 @@ impl<'a> TrackerManager<'a> {
         }
     }
 
-    //get all peers
+    /// Get all peers.
     pub async fn get_all_peers(&self) -> Vec<[u8; 6]> {
         self.peer_pool.iter().copied().collect()
     }

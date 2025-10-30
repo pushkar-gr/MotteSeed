@@ -1,7 +1,11 @@
+//! Peer ID generation.
+//!
+//! Generates a unique Azureus-style peer ID for the client.
+
 use once_cell::sync::Lazy;
 use rand::{Rng, rng};
 
-//static peer_id that gets generated once per client session
+/// Static peer ID that gets generated once per client session.
 static PEER_ID: Lazy<[u8; 20]> = Lazy::new(|| {
     let mut id = [0u8; 20];
     //create an Azureus-style peer_id
@@ -30,7 +34,7 @@ static PEER_ID: Lazy<[u8; 20]> = Lazy::new(|| {
     id
 });
 
-//get peer id
+/// Gets the static peer ID.
 pub fn get_peer_id() -> &'static [u8; 20] {
     &PEER_ID
 }

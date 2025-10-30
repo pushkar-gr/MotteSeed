@@ -1,3 +1,7 @@
+//! Disk I/O for torrent files.
+//!
+//! Handles reading and writing pieces to disk for single and multi-file torrents.
+
 use crate::core::torrent::torrent::{FileDetails, FileEntry};
 
 use bytes::Bytes;
@@ -7,7 +11,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-//structure to represent file system
+/// structure to represent file system
 #[derive(Debug)]
 pub struct DiskIO<'a> {
     base_path: PathBuf,                //base path of the files
@@ -18,7 +22,11 @@ pub struct DiskIO<'a> {
 }
 
 impl<'a> DiskIO<'a> {
-    //create a new object
+    /// Creates a new object.
+    ///
+    /// # Error
+    ///
+    /// Returns `DiskError` if file creation fails.
     pub fn new(
         base_path: PathBuf,
         file_details: &'a FileDetails<'a>,
@@ -89,7 +97,11 @@ impl<'a> DiskIO<'a> {
         })
     }
 
-    //write a piece to disk
+    /// Writes a piece to disk.
+    ///
+    /// # Error
+    ///
+    /// Returns `DiskError` if writing fails.
     pub async fn write_piece(&self, piece_index: u32, data: &Bytes) -> Result<(), DiskError> {
         //get offset and verify
         let piece_offset = piece_index * self.piece_length;
@@ -118,7 +130,11 @@ impl<'a> DiskIO<'a> {
         Ok(())
     }
 
-    //write piece to multi file
+    /// Writes piece multi file.
+    ///
+    /// # Error
+    ///
+    /// Returns `DiskError` if writing fails.
     async fn write_multi_file_piece(
         &self,
         piece_index: u32,
@@ -173,7 +189,11 @@ impl<'a> DiskIO<'a> {
         Ok(())
     }
 
-    //read piece from file
+    /// Reads piece from file.
+    ///
+    /// # Error
+    ///
+    /// Returns `DiskError` if reading fails.
     pub async fn read_piece(&self, piece_index: u32) -> Result<Bytes, DiskError> {
         //get offset and verify
         let piece_offset = (piece_index * self.piece_length) as u64;
@@ -211,7 +231,11 @@ impl<'a> DiskIO<'a> {
         Ok(Bytes::from(buffer))
     }
 
-    //read piece from files
+    /// Reads piece from files.
+    ///
+    /// # Error
+    ///
+    /// Returns `DiskError` if reading fails.
     async fn read_multi_file_piece(
         &self,
         piece_index: u32,
@@ -267,7 +291,7 @@ impl<'a> DiskIO<'a> {
     }
 }
 
-//custom error enum for disk operations
+/// Custom error enum for disk operations.
 #[derive(Error, Debug)]
 pub enum DiskError {
     #[error("IO error: {0}")]

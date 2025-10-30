@@ -1,3 +1,5 @@
+//! Errors for tracker operations.
+
 use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
 use crate::util::errors::BStreamingError;
 
@@ -5,7 +7,7 @@ use http::uri::{InvalidUri, InvalidUriParts};
 use std::str::Utf8Error;
 use thiserror::Error;
 
-//custom error enum for tracker operations
+/// Custom error enum for tracker operations.
 #[derive(Error, Debug)]
 pub enum TrackerError {
     #[error("Invalid Uri: {0}")]

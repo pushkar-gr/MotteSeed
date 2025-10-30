@@ -1,7 +1,12 @@
+//! Message handling for peer communication.
+//!
+//! Defines the Message enum for BitTorrent protocol messages, with serialization and
+//! deserialization functions.
+
 use bytes::{BufMut, Bytes, BytesMut};
 use thiserror::Error;
 
-//message enum to represent message tyes in BitTorrent protocol
+/// Message enum to represent types of message in the BitTorrent protocol.
 #[derive(Debug)]
 pub enum Message {
     KeepAlive,
@@ -30,14 +35,14 @@ pub enum Message {
 }
 
 impl Message {
-    //serialize message to bytes
+    /// Serializes the message to bytes.
     pub fn serialize(&self) -> Bytes {
         let mut buf = BytesMut::new();
         self.serialize_into(&mut buf);
         buf.freeze()
     }
 
-    //serialize message to given buf
+    /// Serializes the message into the given buffer.
     pub fn serialize_into(&self, buf: &mut BytesMut) {
         match self {
             Message::KeepAlive => buf.put_u32(0),
@@ -108,7 +113,11 @@ impl Message {
         };
     }
 
-    //deserialize bytes to Message
+    /// Deserializes bytes into Message.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MessageError` if the message is too short or has an invalid type.
     pub fn deserialize(bytes: &mut BytesMut) -> Result<Self, MessageError> {
         //min 4 bytes for message length
         if bytes.len() < 4 {
@@ -203,7 +212,7 @@ impl Message {
     }
 }
 
-//custom error enum for message parsing
+/// Errors that can occur during message deserialization.
 #[derive(Error, Debug)]
 pub enum MessageError {
     #[error("Invalid message type: {0}")]

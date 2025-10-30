@@ -1,18 +1,23 @@
+//! Block management within pieces.
+//!
+//! Represents individual blocks of data in a piece, with states and timeouts.
+
 use bytes::Bytes;
 use std::time::{Duration, Instant};
 
-//structure to represent a block
+/// Structure to represent a block.
 #[derive(Debug)]
 pub struct Block<'a> {
-    pub index: u32,  //index of the piece block belongs to
-    pub offset: u32, //offset of block in the piece
-    pub length: u32, //lenght of data
+    pub index: u32,            //index of the piece block belongs to
+    pub offset: u32,           //offset of block in the piece
+    pub length: u32,           //lenght of data
     pub state: BlockState<'a>, //block state
 }
 
 impl<'a> Block<'a> {
     const TIMEOUT: Duration = Duration::from_secs(120);
-    //create new object
+
+    /// Creates a new block.
     pub fn new(index: u32, offset: u32, length: u32) -> Self {
         Self {
             index,
@@ -22,7 +27,7 @@ impl<'a> Block<'a> {
         }
     }
 
-    //request block from peer
+    /// Requests the block from a peer.
     pub fn request_from_peer(&mut self, peer_ip: &'a [u8; 6]) {
         self.state = BlockState::Requested {
             peer_ip,
@@ -30,12 +35,12 @@ impl<'a> Block<'a> {
         }
     }
 
-    //calcle request from peer
+    /// Calcles the request for the block.
     pub fn cancle(&mut self) {
         self.state = BlockState::Missing;
     }
 
-    //reset request from peer if timout
+    /// Resets request if timed out, returning the peer IP.
     pub fn reset(&mut self) -> Option<&'a [u8; 6]> {
         if let BlockState::Requested { peer_ip, instant } = self.state {
             if instant.elapsed() > Self::TIMEOUT {
@@ -46,25 +51,25 @@ impl<'a> Block<'a> {
         None
     }
 
-    //data received
+    /// Receives data for the block.
     pub fn receive_data(&mut self, bytes: Bytes) {
         if bytes.len() as u32 == self.length {
             self.state = BlockState::Received(bytes);
         }
     }
 
-    //mark block as written
+    /// Marks the block as written to disk.
     pub fn mask_written(&mut self) {
         self.state = BlockState::Written;
     }
 
-    //check if block is compelte
+    /// Checks if the block is compelte.
     pub fn is_complete(&self) -> bool {
         matches!(self.state, BlockState::Received(_) | BlockState::Written)
     }
 }
 
-//represents block state
+/// Represents block state.
 #[derive(Debug)]
 pub enum BlockState<'a> {
     Missing, //block needs to be downloaded

@@ -1,3 +1,7 @@
+//! HTTP tracker implementation.
+//!
+//! Communicates with HTTP trackers to announce and get peers.
+
 use crate::core::torrent_stats::TorrentStats;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
@@ -20,7 +24,7 @@ use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 
-//manages communication with a BitTorrent tracker
+/// Manages communication with a BitTorrent tracker.
 #[derive(Debug)]
 pub struct TrackerHTTP<'a> {
     request: AnnounceRequestHTTP<'a>, //request object
@@ -29,7 +33,7 @@ pub struct TrackerHTTP<'a> {
 }
 
 impl<'a> TrackerHTTP<'a> {
-    //send a request to the tracker and processes the response
+    /// Sends a request to the tracker and processes the response.
     async fn announce(&mut self) -> Result<Bencode, TrackerError> {
         let response = announce(&self.request).await?;
         self.last_announce = Instant::now();
@@ -39,7 +43,7 @@ impl<'a> TrackerHTTP<'a> {
 
 #[async_trait]
 impl<'a> Tracker for TrackerHTTP<'a> {
-    //get peers from tracker, making a new request if needed
+    /// Gets peers from tracker, making a new request if needed.
     async fn get_peers(&mut self) -> Result<&Vec<[u8; 6]>, TrackerError> {
         //request again if interval has passed
         if self.last_announce.elapsed().as_secs() > self.response.interval {
@@ -51,7 +55,7 @@ impl<'a> Tracker for TrackerHTTP<'a> {
 }
 
 impl<'a> TrackerConstructor<'a> for TrackerHTTP<'a> {
-    //create a new tracker and sends an initial request
+    /// Creates a new tracker and sends an initial request.
     async fn new(
         tracker: &'a [u8],
         info_hash: &'a [u8; 20],
@@ -70,7 +74,7 @@ impl<'a> TrackerConstructor<'a> for TrackerHTTP<'a> {
     }
 }
 
-//represents a request to be sent to a BitTorrent tracker
+/// Represents a request to be sent to a BitTorrent tracker.
 #[derive(Debug)]
 struct AnnounceRequestHTTP<'a> {
     tracker: &'a str,                 //tracker URL as str
@@ -82,7 +86,7 @@ struct AnnounceRequestHTTP<'a> {
 }
 
 impl<'a> AnnounceRequestHTTP<'a> {
-    //create a new tracker request
+    /// Creates a new tracker request.
     fn new(
         tracker: &'a [u8],
         info_hash: &'a [u8; 20],
@@ -104,7 +108,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
         })
     }
 
-    //URL encodes a 20-byte value for use in tracker requests
+    /// URL encodes a 20-byte value for use in tracker requests.
     fn url_encode(bytes: &[u8; 20]) -> String {
         //count bytes that need encoding
         let encoded_count = bytes
@@ -138,7 +142,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
         result
     }
 
-    //build a complete tracker request URL with all required parameters
+    /// Builds a complete tracker request URL with all required parameters.
     async fn build_url(&'a self) -> Result<Uri, TrackerError> {
         //buffer for int to str
         let mut buffer = itoa::Buffer::new();
@@ -198,7 +202,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
     }
 }
 
-//represents a reponse sent by a trakcer
+/// Represents a reponse sent by a trakcer.
 #[derive(Debug)]
 struct AnnounceResponseHTTP {
     interval: u64,       //seconds between tracker requests
@@ -242,7 +246,7 @@ impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {
     }
 }
 
-//send a request to the tracker and processes the response
+/// Sends a request to the tracker and processes the response.
 async fn announce<'a>(req: &'a AnnounceRequestHTTP<'a>) -> Result<Bencode, TrackerError> {
     let url = req.build_url().await?;
 

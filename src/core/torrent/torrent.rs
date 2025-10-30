@@ -1,3 +1,7 @@
+//! Torrent file structure and parsing.
+//!
+//! Defines the Torrent and related structs, with BencodeDecodable implementations.
+
 use crate::core::torrent::torrent_error::ReadTorrentError;
 use crate::util::bencode::bencode_decodable::BencodeDecodable;
 use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
@@ -12,10 +16,11 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 
-//define cached keys
+/// Cached keys for bencoding decoding.
 static LENGTH_KEY: Lazy<ByteString> = Lazy::new(|| ByteString::from_str("length"));
 static PATH_KEY: Lazy<ByteString> = Lazy::new(|| ByteString::from_str("path"));
 
+/// Represents a prased torrent file.
 #[derive(Debug)]
 pub struct Torrent<'a> {
     pub announce: &'a [u8],  //tracker URL
@@ -102,6 +107,7 @@ impl<'a> BencodeDecodable<'a> for Torrent<'a> {
     }
 }
 
+/// Represents the info dictionary of a torrent.
 #[derive(Debug)]
 pub struct Info<'a> {
     pub name: Cow<'a, str>,            //torrent name/file name
@@ -114,7 +120,7 @@ pub struct Info<'a> {
 }
 
 impl<'a> Info<'a> {
-    //get SHA1 of a index from raw_pieces
+    /// Gets the SHA1 hash of a piece by index.
     pub fn piece_hash(&self, index: usize) -> Option<&[u8; 20]> {
         //compute start and end
         let start = index * 20;
@@ -189,12 +195,14 @@ impl<'a> BencodeDecodable<'a> for Info<'a> {
     }
 }
 
+/// Enum for file details in torrent.
 #[derive(Debug)]
 pub enum FileDetails<'a> {
     SingleFile { length: u64 }, //file length in bytes for single file torrent
     MultiFile { files: Vec<FileEntry<'a>> }, //list of files for multi file torrent
 }
 
+/// Represents a file entry in multi-file torrents.
 #[derive(Debug)]
 pub struct FileEntry<'a> {
     pub length: u64,         //file length in bytes
@@ -220,6 +228,7 @@ impl<'a> BencodeDecodable<'a> for FileEntry<'a> {
     }
 }
 
+/// Wrapper for parsed torrent data with lieftime management.
 #[derive(Debug)]
 pub struct TorrentFile<'a> {
     _data: Rc<Vec<u8>>,       //store data to ensure it stays alive
@@ -228,7 +237,11 @@ pub struct TorrentFile<'a> {
 }
 
 impl<'a> TorrentFile<'a> {
-    //create TorrentFile from bytes
+    /// Creates TorrentFile from bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ReadTorrentError` if decoding fails.
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, ReadTorrentError> {
         //create reference-counted data
         let data = Rc::new(bytes);
@@ -253,7 +266,11 @@ impl<'a> TorrentFile<'a> {
         })
     }
 
-    //create TorrentFile from file
+    /// Creates TorrentFile from file path.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ReadTorrentError` if decoding fails.
     pub fn from_file(file: &Path) -> Result<Self, ReadTorrentError> {
         let content = fs::read(file).map_err(ReadTorrentError::IOError)?;
         Self::from_bytes(content)

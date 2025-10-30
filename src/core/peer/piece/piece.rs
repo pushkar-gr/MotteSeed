@@ -1,10 +1,14 @@
+//! Piece structure and management.
+//!
+//! Represents a piece of torrent, with blocks and verification.
+
 use crate::core::peer::piece::block::{Block, BlockState};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 
-//structure to represent a piece
+/// Structure to represent a piece.
 #[derive(Debug)]
 pub struct Piece<'a> {
     pub index: u32,                      //piece index
@@ -17,7 +21,7 @@ pub struct Piece<'a> {
 }
 
 impl<'a> Piece<'a> {
-    //create new object
+    /// Creates a new piece with blocks.
     pub fn new(index: u32, length: u32, hash: &'a [u8; 20], block_size: u32) -> Self {
         let mut blocks = HashMap::new();
         let mut offset = 0;
@@ -40,19 +44,19 @@ impl<'a> Piece<'a> {
         }
     }
 
-    //request block from peer
+    /// Requests a block from a peer.
     pub fn request_from_peer(&mut self, offset: u32, peer_ip: &'a [u8; 6]) {
         if let Some(block) = self.blocks.get_mut(&offset) {
             block.request_from_peer(peer_ip);
         }
     }
 
-    //check if all blocks are downloaded
+    /// Check if all blocks are downloaded.
     pub fn is_fully_downloaded(&self) -> bool {
         self.blocks.values().all(|block| block.is_complete())
     }
 
-    //verify piece with SHA1 hash
+    /// Verifies the piece with SHA1 hash.
     pub fn verify(&mut self) -> bool {
         let mut buf = BytesMut::with_capacity(self.length as usize);
 
@@ -90,7 +94,7 @@ impl<'a> Piece<'a> {
         }
     }
 
-    //receive block from peer
+    /// Receives a block from peer.
     pub fn receive_block(&mut self, offset: u32, data: Bytes) -> bool {
         if let Some(block) = self.blocks.get_mut(&offset) {
             block.receive_data(data);
@@ -105,12 +109,12 @@ impl<'a> Piece<'a> {
         }
     }
 
-    //mark block as written
+    /// Marks the  piece as written.
     pub fn mask_written(&mut self) {
         self.state = PieceState::Written;
     }
 
-    //get next missing block offset
+    /// Gets the next missing block offset.
     pub fn get_next_missing_block(&self) -> Option<u32> {
         for (offset, block) in &self.blocks {
             if !block.is_complete() {
@@ -120,7 +124,7 @@ impl<'a> Piece<'a> {
         None
     }
 
-    //reset request for blocks
+    /// Resets timeout requests, returning reset IPs.
     pub fn reset_timeout_requests(&mut self) -> HashMap<u32, &'a [u8; 6]> {
         let mut reset_ip = HashMap::new();
 
@@ -133,13 +137,13 @@ impl<'a> Piece<'a> {
         reset_ip
     }
 
-    //check if block is compelte
+    /// Checks if piece is compelte.
     pub fn is_complete(&self) -> bool {
         matches!(self.state, PieceState::Complete | PieceState::Written)
     }
 }
 
-//represents block state
+/// Represents piece state.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PieceState {
     Missing,    //piece needs to be downloaded

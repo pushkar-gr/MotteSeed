@@ -1,3 +1,7 @@
+//! UDP tracker implementation.
+//!
+//! Communicates with UDP trackers using custom protocol.
+
 use crate::core::torrent_stats::TorrentStats;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
 use crate::core::tracker::tracker_error::TrackerError;
@@ -15,7 +19,7 @@ use tokio::time::{Instant, timeout};
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_RETRIES: usize = 3;
 
-//represents UDP tracker client
+/// Represents UDP tracker client.
 #[derive(Debug)]
 pub struct TrackerUDP<'a> {
     socket: UdpSocket,                        //UDP socket for connection
@@ -30,7 +34,7 @@ pub struct TrackerUDP<'a> {
 impl<'a> TrackerUDP<'a> {
     const CONNECTION_EXPIRY: Duration = Duration::from_secs(120);
 
-    //get connection id
+    /// Gets connection ID.
     async fn get_connection_id(&mut self) -> Result<u64, TrackerError> {
         //update connection id if expired
         if self.connection_time.elapsed() >= Self::CONNECTION_EXPIRY {
@@ -39,13 +43,13 @@ impl<'a> TrackerUDP<'a> {
         Ok(self.connection_id)
     }
 
-    //refresh connection id
+    /// Refreshes connection ID.
     async fn refresh_connection(&mut self) -> Result<(), TrackerError> {
         self.connection_id = get_connection_id(&self.socket, &self.server_addr).await?;
         Ok(())
     }
 
-    //send a request to the tracker and processes the response
+    /// Sends a request to the tracker and processes the response.
     async fn announce(&mut self) -> Result<AnnounceResponseUDP, TrackerError> {
         let connection_id = self.get_connection_id().await?;
         let announce_response = announce(
@@ -62,7 +66,7 @@ impl<'a> TrackerUDP<'a> {
 
 #[async_trait]
 impl<'a> Tracker for TrackerUDP<'a> {
-    //get peers from tracker, making a new request if needed
+    /// Gets peers from tracker, making a new request if needed.
     async fn get_peers(&mut self) -> Result<&Vec<[u8; 6]>, TrackerError> {
         //request again if interval has passed
         if self.last_announce.elapsed().as_secs() > self.announce_response.interval.into() {
@@ -107,7 +111,7 @@ impl<'a> TrackerConstructor<'a> for TrackerUDP<'a> {
     }
 }
 
-//represents a request to be sent to a BitTorrent tracker
+/// Represents a request to be sent to a BitTorrent tracker.
 #[derive(Debug)]
 struct AnnounceRequestUDP<'a> {
     info_hash: &'a [u8; 20],          //SHA1 info hash
@@ -121,7 +125,7 @@ struct AnnounceRequestUDP<'a> {
 }
 
 impl<'a> AnnounceRequestUDP<'a> {
-    //create a new tracker request
+    /// Creates a new tracker request.
     fn new(
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
@@ -140,7 +144,7 @@ impl<'a> AnnounceRequestUDP<'a> {
         }
     }
 
-    //serialize request to bytes
+    /// Serializes request to bytes.
     async fn to_bytes(&self, connection_id: u64, transaction_id: u32) -> [u8; 98] {
         let mut buf = [0u8; 98];
         buf[0..8].copy_from_slice(&connection_id.to_be_bytes());
@@ -164,7 +168,7 @@ impl<'a> AnnounceRequestUDP<'a> {
     }
 }
 
-//represents a reponse sent by a trakcer
+/// Represents a reponse sent by a trakcer.
 #[derive(Debug)]
 struct AnnounceResponseUDP {
     action: u32,         //1 for announce
@@ -176,7 +180,7 @@ struct AnnounceResponseUDP {
 }
 
 impl AnnounceResponseUDP {
-    //deserialize response from bytes
+    /// Deserializes response from bytes.
     fn from_bytes(data: &[u8]) -> Result<Self, TrackerError> {
         if data.len() < 20 {
             return Err(TrackerError::Other("Response too short".into()));
@@ -217,7 +221,7 @@ impl AnnounceResponseUDP {
     }
 }
 
-//represents connection response from a tracker
+/// Represents connection response from a tracker.
 struct ConnectionResponse {
     action: u32,
     transaction_id: u32,
@@ -225,7 +229,7 @@ struct ConnectionResponse {
 }
 
 impl ConnectionResponse {
-    //convert bytes to ConnectionResponse
+    /// Converts bytes to ConnectionResponse.
     fn from_bytes(data: [u8; 16]) -> Self {
         let action = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         let transaction_id = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
@@ -240,7 +244,7 @@ impl ConnectionResponse {
     }
 }
 
-//get connection id for a tracker
+/// Gets connection ID for a tracker.
 async fn get_connection_id(
     socket: &UdpSocket,
     server_addr: &SocketAddr,
@@ -273,7 +277,7 @@ async fn get_connection_id(
     Err(TrackerError::Other("Max Retries Exceeded".into()))
 }
 
-//parse str to get SocketAddr
+/// Parses str to get SocketAddr.
 async fn parse_udp_url(url: &str) -> Result<SocketAddr, TrackerError> {
     //get url host
     let host_port = url
@@ -291,15 +295,17 @@ async fn parse_udp_url(url: &str) -> Result<SocketAddr, TrackerError> {
 
     //create SocketAddr
     let ipv4_addrs: Vec<SocketAddr> = addrs.filter(|addr| addr.is_ipv4()).collect();
-    
+
     //return if IPv4 found
     if !ipv4_addrs.is_empty() {
         Ok(ipv4_addrs[0])
     } else {
-        Err(TrackerError::Other("No IPv4 address found for tracker".into()))
+        Err(TrackerError::Other(
+            "No IPv4 address found for tracker".into(),
+        ))
     }
 }
-//recive tracker response
+/// Recives tracker response.
 async fn recv_conn_id_response(socket: &UdpSocket) -> Result<ConnectionResponse, TrackerError> {
     let mut buf = [0_u8; 1024];
     let (bytes_received, _) = socket.recv_from(&mut buf).await?;
@@ -320,7 +326,7 @@ async fn recv_conn_id_response(socket: &UdpSocket) -> Result<ConnectionResponse,
     }
 }
 
-//create a connection request message
+/// Creates a connection request message.
 #[inline]
 fn create_connect_request(transaction_id: u32) -> [u8; 16] {
     let mut buf = [0_u8; 16];
@@ -333,7 +339,7 @@ fn create_connect_request(transaction_id: u32) -> [u8; 16] {
     buf
 }
 
-//send a request to the tracker and processes the response
+/// Sends a request to the tracker and processes the response.
 async fn announce<'a>(
     server_addr: &SocketAddr,
     socket: &UdpSocket,
@@ -370,7 +376,7 @@ async fn announce<'a>(
     Err(TrackerError::Other("Max Retries Exceeded".into()))
 }
 
-//recive tracker response
+/// Recives tracker response.
 async fn recv_announce_response(socket: &UdpSocket) -> Result<AnnounceResponseUDP, TrackerError> {
     let mut buf = [0_u8; 1024];
     let (bytes_received, _) = socket.recv_from(&mut buf).await?;

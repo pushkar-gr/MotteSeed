@@ -1,6 +1,8 @@
+//! Errors for bencode decoding.
+
 use thiserror::Error;
 
-//custom error enum for reading torrent operations
+/// Custom error enum for reading torrent operations.
 #[derive(Error, Debug)]
 pub enum BencodeDecodableError {
     //key not found error

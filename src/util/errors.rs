@@ -1,6 +1,8 @@
+//! Wrapper for bencode streaming errors.
+
 use bencode::streaming::Error as BencStreamingError;
 
-//wrapper struct for streaming::Error
+/// Wrapper struct for streaming::Error.
 #[derive(Debug)]
 pub struct BStreamingError(BencStreamingError);
 

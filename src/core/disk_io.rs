@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-/// structure to represent file system
+/// Structure to represent file system
 #[derive(Debug)]
 pub struct DiskIO<'a> {
     base_path: PathBuf,                //base path of the files

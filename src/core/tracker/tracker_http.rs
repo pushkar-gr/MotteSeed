@@ -202,7 +202,7 @@ impl<'a> AnnounceRequestHTTP<'a> {
     }
 }
 
-/// Represents a reponse sent by a trakcer.
+/// Represents a response sent by a tracker.
 #[derive(Debug)]
 struct AnnounceResponseHTTP {
     interval: u64,       //seconds between tracker requests

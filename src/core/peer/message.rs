@@ -6,7 +6,7 @@
 use bytes::{BufMut, Bytes, BytesMut};
 use thiserror::Error;
 
-/// Message enum to represent types of message in the BitTorrent protocol.
+/// Message enum to represent types of messages in the BitTorrent protocol.
 #[derive(Debug)]
 pub enum Message {
     KeepAlive,

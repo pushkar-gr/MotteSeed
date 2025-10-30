@@ -168,7 +168,7 @@ impl<'a> AnnounceRequestUDP<'a> {
     }
 }
 
-/// Represents a reponse sent by a trakcer.
+/// Represents a response sent by a tracker.
 #[derive(Debug)]
 struct AnnounceResponseUDP {
     action: u32,         //1 for announce

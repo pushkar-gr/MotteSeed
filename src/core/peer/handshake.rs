@@ -7,7 +7,7 @@ use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-/// Performs handshake with peer and return peer's ID if succussful.
+/// Performs handshake with peer and return peer's ID if successful.
 ///
 /// Builds a handshake message with the protocol string, reserves bytes, info hash, and peer ID,
 /// sends it, receives the response, and verifies it.

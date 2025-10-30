@@ -97,7 +97,7 @@ impl<'a> PeerConnection {
         Ok(Message::deserialize(buf)?)
     }
 
-    /// Handles a emssage from the peer.
+    /// Handles a message from the peer.
     async fn handle_message(&mut self, message: Message) -> Result<(), ConnectionError> {
         match message {
             Message::KeepAlive => {

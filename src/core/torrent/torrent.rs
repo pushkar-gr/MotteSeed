@@ -20,7 +20,7 @@ use std::rc::Rc;
 static LENGTH_KEY: Lazy<ByteString> = Lazy::new(|| ByteString::from_str("length"));
 static PATH_KEY: Lazy<ByteString> = Lazy::new(|| ByteString::from_str("path"));
 
-/// Represents a prased torrent file.
+/// Represents a parsed torrent file.
 #[derive(Debug)]
 pub struct Torrent<'a> {
     pub announce: &'a [u8],  //tracker URL
@@ -228,7 +228,7 @@ impl<'a> BencodeDecodable<'a> for FileEntry<'a> {
     }
 }
 
-/// Wrapper for parsed torrent data with lieftime management.
+/// Wrapper for parsed torrent data with lifetime management.
 #[derive(Debug)]
 pub struct TorrentFile<'a> {
     _data: Rc<Vec<u8>>,       //store data to ensure it stays alive

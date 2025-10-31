@@ -2,7 +2,11 @@
 
 use bencode::streaming::Error as BencStreamingError;
 
-/// Wrapper struct for streaming::Error.
+/// Wrapper struct for bencode streaming errors.
+///
+/// This struct wraps errors from the bencode streaming parser, providing
+/// conversion and display implementations to integrate with the standard
+/// Rust error handling system.
 #[derive(Debug)]
 pub struct BStreamingError(BencStreamingError);
 

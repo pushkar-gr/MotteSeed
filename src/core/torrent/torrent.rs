@@ -16,22 +16,33 @@ use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 
-/// Cached keys for bencoding decoding.
+/// Cached "length" key for bencode decoding optimization.
 static LENGTH_KEY: Lazy<ByteString> = Lazy::new(|| ByteString::from_str("length"));
+/// Cached "path" key for bencode decoding optimization.
 static PATH_KEY: Lazy<ByteString> = Lazy::new(|| ByteString::from_str("path"));
 
 /// Represents a parsed torrent file.
+///
+/// This structure contains all the metadata from a .torrent file, including
+/// tracker URLs, file information, and the computed info hash.
 #[derive(Debug)]
 pub struct Torrent<'a> {
-    pub announce: &'a [u8],  //tracker URL
-    pub info: Info<'a>,      //main metadata
-    pub info_hash: [u8; 20], //SHA1 encoding of bencode value of info
-    //optional fields
-    pub comment: Option<&'a [u8]>,                 //creator comment
-    pub created_by: Option<&'a [u8]>,              //program that created the torrent
-    pub creation_date: Option<u64>,                //Unix timestamp when torrent was created
-    pub encoding: Option<&'a [u8]>,                //character encoding
-    pub announce_list: Option<Vec<Vec<&'a [u8]>>>, //list of backup trackers
+    /// Primary tracker URL for peer discovery.
+    pub announce: &'a [u8],
+    /// Metadata about the files in this torrent.
+    pub info: Info<'a>,
+    /// SHA-1 hash of the bencoded info dictionary, used to identify the torrent.
+    pub info_hash: [u8; 20],
+    /// Optional comment from the torrent creator.
+    pub comment: Option<&'a [u8]>,
+    /// Optional name of the program that created the torrent.
+    pub created_by: Option<&'a [u8]>,
+    /// Optional Unix timestamp when the torrent was created.
+    pub creation_date: Option<u64>,
+    /// Optional character encoding used in the torrent.
+    pub encoding: Option<&'a [u8]>,
+    /// Optional list of backup tracker URLs organized in tiers.
+    pub announce_list: Option<Vec<Vec<&'a [u8]>>>,
 }
 
 impl<'a> BencodeDecodable<'a> for Torrent<'a> {
@@ -108,19 +119,45 @@ impl<'a> BencodeDecodable<'a> for Torrent<'a> {
 }
 
 /// Represents the info dictionary of a torrent.
+///
+/// Contains metadata about the files, pieces, and piece hashes for the torrent.
 #[derive(Debug)]
 pub struct Info<'a> {
-    pub name: Cow<'a, str>,            //torrent name/file name
-    pub piece_length: u64,             //size of each piece in bytes
-    pub raw_pieces: &'a [u8], //raw bytes representing the concatenated SHA-1 hashes of all pieces
-    pub file_details: FileDetails<'a>, //single/multi file torrent
-    //optional fields
-    pub private: Option<u64>,     //1=private
-    pub source: Option<&'a [u8]>, //source for private torrents
+    /// Name of the torrent or the root file/directory.
+    pub name: Cow<'a, str>,
+    /// Size of each piece in bytes (except possibly the last piece).
+    pub piece_length: u64,
+    /// Concatenated SHA-1 hashes of all pieces (each hash is 20 bytes).
+    pub raw_pieces: &'a [u8],
+    /// Information about files: single file or multiple files.
+    pub file_details: FileDetails<'a>,
+    /// Optional flag indicating if this is a private torrent (1 = private).
+    pub private: Option<u64>,
+    /// Optional source identifier for private torrents.
+    pub source: Option<&'a [u8]>,
 }
 
 impl<'a> Info<'a> {
-    /// Gets the SHA1 hash of a piece by index.
+    /// Gets the SHA-1 hash of a piece by index.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The zero-based index of the piece
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(&[u8; 20])` containing the 20-byte SHA-1 hash if the index is valid,
+    /// or `None` if the index is out of range.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use MotteSeed::core::torrent::torrent::Info;
+    /// # let info: Info = todo!();
+    /// if let Some(hash) = info.piece_hash(0) {
+    ///     println!("First piece hash: {:?}", hash);
+    /// }
+    /// ```
     pub fn piece_hash(&self, index: usize) -> Option<&[u8; 20]> {
         //compute start and end
         let start = index * 20;
@@ -195,18 +232,33 @@ impl<'a> BencodeDecodable<'a> for Info<'a> {
     }
 }
 
-/// Enum for file details in torrent.
+/// Represents file information in a torrent.
+///
+/// A torrent can contain either a single file or multiple files. This enum
+/// distinguishes between these two cases.
 #[derive(Debug)]
 pub enum FileDetails<'a> {
-    SingleFile { length: u64 }, //file length in bytes for single file torrent
-    MultiFile { files: Vec<FileEntry<'a>> }, //list of files for multi file torrent
+    /// A single-file torrent.
+    SingleFile {
+        /// Length of the file in bytes.
+        length: u64,
+    },
+    /// A multi-file torrent.
+    MultiFile {
+        /// List of files in the torrent.
+        files: Vec<FileEntry<'a>>,
+    },
 }
 
 /// Represents a file entry in multi-file torrents.
+///
+/// Each file entry contains the file size and path components.
 #[derive(Debug)]
 pub struct FileEntry<'a> {
-    pub length: u64,         //file length in bytes
-    pub path: Vec<&'a [u8]>, //path components
+    /// Length of the file in bytes.
+    pub length: u64,
+    /// Path components forming the file path relative to the torrent root.
+    pub path: Vec<&'a [u8]>,
 }
 
 impl<'a> BencodeDecodable<'a> for FileEntry<'a> {
@@ -229,19 +281,45 @@ impl<'a> BencodeDecodable<'a> for FileEntry<'a> {
 }
 
 /// Wrapper for parsed torrent data with lifetime management.
+///
+/// This structure manages the lifetime of the underlying data and bencode
+/// structures, ensuring they remain valid while the `Torrent` struct references them.
+/// It uses reference counting to safely extend lifetimes.
 #[derive(Debug)]
 pub struct TorrentFile<'a> {
-    _data: Rc<Vec<u8>>,       //store data to ensure it stays alive
-    _bencode: Rc<Bencode>,    //store bencode to ensure it stays alive
-    pub torrent: Torrent<'a>, //parsed torrent that references the data
+    /// Reference-counted storage for the raw torrent file bytes.
+    _data: Rc<Vec<u8>>,
+    /// Reference-counted storage for the parsed bencode structure.
+    _bencode: Rc<Bencode>,
+    /// The parsed torrent metadata that references the data.
+    pub torrent: Torrent<'a>,
 }
 
 impl<'a> TorrentFile<'a> {
-    /// Creates TorrentFile from bytes.
+    /// Creates a TorrentFile from raw bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The raw bytes of a .torrent file
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(TorrentFile)` on success.
     ///
     /// # Errors
     ///
-    /// Returns `ReadTorrentError` if decoding fails.
+    /// Returns `ReadTorrentError` if:
+    /// - The bytes are not valid bencode data
+    /// - The torrent structure is malformed or missing required fields
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use MotteSeed::core::torrent::torrent::TorrentFile;
+    /// let torrent_data = vec![/* torrent file bytes */];
+    /// let torrent_file = TorrentFile::from_bytes(torrent_data)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, ReadTorrentError> {
         //create reference-counted data
         let data = Rc::new(bytes);
@@ -266,11 +344,32 @@ impl<'a> TorrentFile<'a> {
         })
     }
 
-    /// Creates TorrentFile from file path.
+    /// Creates a TorrentFile from a file path.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - Path to the .torrent file
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(TorrentFile)` on success.
     ///
     /// # Errors
     ///
-    /// Returns `ReadTorrentError` if decoding fails.
+    /// Returns `ReadTorrentError` if:
+    /// - The file cannot be read from disk
+    /// - The file is not valid bencode data
+    /// - The torrent structure is malformed
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use MotteSeed::core::torrent::torrent::TorrentFile;
+    /// # use std::path::Path;
+    /// let torrent_file = TorrentFile::from_file(Path::new("example.torrent"))?;
+    /// println!("Loaded torrent: {:?}", torrent_file.torrent.info.name);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn from_file(file: &Path) -> Result<Self, ReadTorrentError> {
         let content = fs::read(file).map_err(ReadTorrentError::IO)?;
         Self::from_bytes(content)

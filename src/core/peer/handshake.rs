@@ -7,15 +7,49 @@ use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-/// Performs handshake with peer and return peer's ID if successful.
+/// Performs the BitTorrent handshake with a peer.
 ///
-/// Builds a handshake message with the protocol string, reserves bytes, info hash, and peer ID,
-/// sends it, receives the response, and verifies it.
+/// Sends a handshake message containing the protocol identifier, info hash, and peer ID,
+/// then receives and validates the peer's handshake response.
+///
+/// The handshake message format (68 bytes total):
+/// - 1 byte: protocol string length (19)
+/// - 19 bytes: protocol string ("BitTorrent protocol")
+/// - 8 bytes: reserved (all zeros)
+/// - 20 bytes: info hash
+/// - 20 bytes: peer ID
+///
+/// # Arguments
+///
+/// * `stream` - The TCP connection to the peer
+/// * `peer_id` - Our 20-byte peer ID
+/// * `info_hash` - The 20-byte info hash of the torrent
+///
+/// # Returns
+///
+/// Returns the peer's 20-byte peer ID on successful handshake.
 ///
 /// # Errors
 ///
-/// Returns `HandShakeError` if the handshake fails due to I/O issues, invalid protocol, or
-/// mismatched info hash.
+/// Returns `HandShakeError` if:
+/// - I/O error occurs during communication
+/// - Peer's handshake has invalid protocol identifier
+/// - Peer's info hash doesn't match ours
+///
+/// # Example
+///
+/// ```no_run
+/// # use MotteSeed::core::peer::handshake::handshake;
+/// # use tokio::net::TcpStream;
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let mut stream = TcpStream::connect("127.0.0.1:6881").await?;
+/// let peer_id = &[0u8; 20];
+/// let info_hash = &[0u8; 20];
+/// let remote_peer_id = handshake(&mut stream, peer_id, info_hash).await?;
+/// println!("Connected to peer: {:?}", remote_peer_id);
+/// # Ok(())
+/// # }
+/// ```
 pub async fn handshake(
     stream: &mut TcpStream,
     peer_id: &[u8; 20],
@@ -55,18 +89,22 @@ pub async fn handshake(
         .map_err(|e: TryFromSliceError| HandShakeError::Other(e.into()))
 }
 
-/// Errors that can occur during the handshake process.
+/// Errors that can occur during the BitTorrent handshake process.
 #[derive(Error, Debug)]
 pub enum HandShakeError {
+    /// I/O error during network communication.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// The peer's handshake message has an invalid protocol identifier.
     #[error("Invalid Handshake")]
     InvalidHandShake,
 
+    /// The peer's info hash doesn't match the expected info hash.
     #[error("Invalid InfoHash")]
     InvalidInfoHash,
 
+    /// Other errors that may occur during handshake.
     #[error("Error: {0}")]
     Other(#[from] Box<dyn std::error::Error>),
 }

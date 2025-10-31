@@ -12,9 +12,9 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct Piece<'a> {
     pub index: u32,                      //piece index
-    pub length: u32,                     //piece length
+    pub length: u64,                     //piece length
     pub hash: &'a [u8; 20],              //SHA1 of piece
-    pub blocks: HashMap<u32, Block<'a>>, //blocks
+    pub blocks: HashMap<u64, Block<'a>>, //blocks
     pub state: PieceState,               //piece state
     pub block_size: u32,                 //block size
     pub priority: u8,                    //piece priority
@@ -22,15 +22,15 @@ pub struct Piece<'a> {
 
 impl<'a> Piece<'a> {
     /// Creates a new piece with blocks.
-    pub fn new(index: u32, length: u32, hash: &'a [u8; 20], block_size: u32) -> Self {
+    pub fn new(index: u32, length: u64, hash: &'a [u8; 20], block_size: u32) -> Self {
         let mut blocks = HashMap::new();
-        let mut offset = 0;
+        let mut offset: u64 = 0;
 
         //create blocks for the piece
         while offset < length {
-            let block_length = std::cmp::min(block_size, length - offset);
+            let block_length = std::cmp::min(block_size, (length - offset) as u32);
             blocks.insert(offset, Block::new(index, offset, block_length));
-            offset += block_length;
+            offset += block_length as u64;
         }
 
         Self {
@@ -45,7 +45,7 @@ impl<'a> Piece<'a> {
     }
 
     /// Requests a block from a peer.
-    pub fn request_from_peer(&mut self, offset: u32, peer_ip: &'a [u8; 6]) {
+    pub fn request_from_peer(&mut self, offset: u64, peer_ip: &'a [u8; 6]) {
         if let Some(block) = self.blocks.get_mut(&offset) {
             block.request_from_peer(peer_ip);
         }
@@ -66,7 +66,7 @@ impl<'a> Piece<'a> {
             if let Some(block) = self.blocks.get(&offset) {
                 if let BlockState::Received(bytes) = &block.state {
                     buf.put(bytes.clone());
-                    offset += self.block_size;
+                    offset += self.block_size as u64;
                 } else {
                     return false;
                 }
@@ -95,7 +95,7 @@ impl<'a> Piece<'a> {
     }
 
     /// Receives a block from peer.
-    pub fn receive_block(&mut self, offset: u32, data: Bytes) -> bool {
+    pub fn receive_block(&mut self, offset: u64, data: Bytes) -> bool {
         if let Some(block) = self.blocks.get_mut(&offset) {
             block.receive_data(data);
 
@@ -115,7 +115,7 @@ impl<'a> Piece<'a> {
     }
 
     /// Gets the next missing block offset.
-    pub fn get_next_missing_block(&self) -> Option<u32> {
+    pub fn get_next_missing_block(&self) -> Option<u64> {
         for (offset, block) in &self.blocks {
             if !block.is_complete() {
                 return Some(*offset);
@@ -125,7 +125,7 @@ impl<'a> Piece<'a> {
     }
 
     /// Resets timeout requests, returning reset IPs.
-    pub fn reset_timeout_requests(&mut self) -> HashMap<u32, &'a [u8; 6]> {
+    pub fn reset_timeout_requests(&mut self) -> HashMap<u64, &'a [u8; 6]> {
         let mut reset_ip = HashMap::new();
 
         for (offset, block) in &mut self.blocks {

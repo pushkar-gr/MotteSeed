@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 #[derive(Debug)]
 pub struct Block<'a> {
     pub index: u32,            //index of the piece block belongs to
-    pub offset: u32,           //offset of block in the piece
+    pub offset: u64,           //offset of block in the piece
     pub length: u32,           //lenght of data
     pub state: BlockState<'a>, //block state
 }
@@ -18,7 +18,7 @@ impl<'a> Block<'a> {
     const TIMEOUT: Duration = Duration::from_secs(120);
 
     /// Creates a new block.
-    pub fn new(index: u32, offset: u32, length: u32) -> Self {
+    pub fn new(index: u32, offset: u64, length: u32) -> Self {
         Self {
             index,
             offset,

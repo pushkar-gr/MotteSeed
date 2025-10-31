@@ -4,3 +4,4 @@
 
 pub mod block;
 pub mod piece;
+pub mod piece_manager;

@@ -141,6 +141,28 @@ impl<'a> Piece<'a> {
     pub fn is_complete(&self) -> bool {
         matches!(self.state, PieceState::Complete | PieceState::Written)
     }
+
+    pub fn get_piece_data(&self) -> Option<Bytes> {
+        if self.state == PieceState::Complete {
+            let mut data = Vec::with_capacity(self.length as usize);
+            let mut offset = 0;
+            while offset < self.length {
+                if let Some(block) = self.blocks.get(&offset) {
+                    if let BlockState::Received(bytes) = &block.state {
+                        data.extend_from_slice(bytes);
+                        offset += block.length as u64;
+                    } else {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+            }
+
+            return Some(Bytes::from(data));
+        }
+        None
+    }
 }
 
 /// Represents piece state.

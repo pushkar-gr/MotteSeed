@@ -1,6 +1,7 @@
 //! UDP tracker implementation.
 //!
-//! Communicates with UDP trackers using custom protocol.
+//! Implements the BitTorrent UDP tracker protocol for announcing to trackers
+//! and retrieving peer lists. Uses a connection-oriented protocol over UDP.
 
 use crate::core::torrent_stats::TorrentStats;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
@@ -16,25 +17,46 @@ use tokio::net::UdpSocket;
 use tokio::sync::RwLock;
 use tokio::time::{Instant, timeout};
 
+/// Connection timeout for UDP requests.
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(15);
+/// Maximum number of retries for failed requests.
 const MAX_RETRIES: usize = 3;
 
-/// Represents UDP tracker client.
+/// UDP tracker client implementation.
+///
+/// Manages communication with UDP BitTorrent trackers using the
+/// UDP tracker protocol, which includes connection ID management.
 #[derive(Debug)]
 pub struct TrackerUDP<'a> {
-    socket: UdpSocket,                        //UDP socket for connection
-    server_addr: SocketAddr,                  //address of tracker
-    connection_id: u64,                       //connection id for tracker
-    connection_time: Instant,                 //time of last tracker connection id request
-    announce_request: AnnounceRequestUDP<'a>, //request object
-    last_announce: Instant,                   //time of last tracker request
-    announce_response: AnnounceResponseUDP,   //response object
+    /// UDP socket for communication.
+    socket: UdpSocket,
+    /// Socket address of the tracker server.
+    server_addr: SocketAddr,
+    /// Current connection ID (expires after 2 minutes).
+    connection_id: u64,
+    /// Timestamp when the connection ID was obtained.
+    connection_time: Instant,
+    /// The announce request to send to the tracker.
+    announce_request: AnnounceRequestUDP<'a>,
+    /// Timestamp of the last announce request.
+    last_announce: Instant,
+    /// Most recent announce response from the tracker.
+    announce_response: AnnounceResponseUDP,
 }
 
 impl<'a> TrackerUDP<'a> {
+    /// Connection ID expiration time (2 minutes per BEP 15).
     const CONNECTION_EXPIRY: Duration = Duration::from_secs(120);
 
-    /// Gets connection ID.
+    /// Gets the current connection ID, refreshing if expired.
+    ///
+    /// # Returns
+    ///
+    /// Returns the current valid connection ID.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackerError` if refreshing the connection ID fails.
     async fn get_connection_id(&mut self) -> Result<u64, TrackerError> {
         //update connection id if expired
         if self.connection_time.elapsed() >= Self::CONNECTION_EXPIRY {
@@ -43,13 +65,27 @@ impl<'a> TrackerUDP<'a> {
         Ok(self.connection_id)
     }
 
-    /// Refreshes connection ID.
+    /// Refreshes the connection ID from the tracker.
+    ///
+    /// Requests a new connection ID from the tracker and updates the connection time.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackerError` if the connection request fails.
     async fn refresh_connection(&mut self) -> Result<(), TrackerError> {
         self.connection_id = get_connection_id(&self.socket, &self.server_addr).await?;
         Ok(())
     }
 
-    /// Sends a request to the tracker and processes the response.
+    /// Sends an announce request to the tracker and processes the response.
+    ///
+    /// # Returns
+    ///
+    /// Returns the announce response containing peers and interval.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackerError` if the announce request fails.
     async fn announce(&mut self) -> Result<AnnounceResponseUDP, TrackerError> {
         let connection_id = self.get_connection_id().await?;
         let announce_response = announce(
@@ -111,21 +147,42 @@ impl<'a> TrackerConstructor<'a> for TrackerUDP<'a> {
     }
 }
 
-/// Represents a request to be sent to a BitTorrent tracker.
+/// Represents a UDP tracker announce request.
+///
+/// Contains all parameters for the UDP tracker announce protocol.
 #[derive(Debug)]
 struct AnnounceRequestUDP<'a> {
-    info_hash: &'a [u8; 20],          //SHA1 info hash
-    peer_id: &'a [u8; 20],            //peer id of peer
-    stats: Arc<RwLock<TorrentStats>>, //total bytes downloaded
-    event: u32,                       //0=none, 1=completed, 2=started, 3=stopped
-    ip_address: u32,                  //0=default
-    key: u32,                         //random key
-    num_want: u32,                    //number of peers wanted (-1=default)
-    port: u16,                        //port number
+    /// SHA-1 hash of the torrent info dictionary.
+    info_hash: &'a [u8; 20],
+    /// Client's 20-byte peer ID.
+    peer_id: &'a [u8; 20],
+    /// Shared torrent statistics.
+    stats: Arc<RwLock<TorrentStats>>,
+    /// Event type: 0=none, 1=completed, 2=started, 3=stopped.
+    event: u32,
+    /// IP address (0=default, use sender's IP).
+    ip_address: u32,
+    /// Random key for identification.
+    key: u32,
+    /// Number of peers wanted (-1=default).
+    num_want: u32,
+    /// Port number the client is listening on.
+    port: u16,
 }
 
 impl<'a> AnnounceRequestUDP<'a> {
-    /// Creates a new tracker request.
+    /// Creates a new UDP tracker announce request.
+    ///
+    /// # Arguments
+    ///
+    /// * `info_hash` - The 20-byte torrent info hash
+    /// * `peer_id` - The 20-byte client peer ID
+    /// * `stats` - Shared torrent statistics
+    /// * `port` - Port number for incoming connections
+    ///
+    /// # Returns
+    ///
+    /// Returns a new AnnounceRequestUDP instance with default values.
     fn new(
         info_hash: &'a [u8; 20],
         peer_id: &'a [u8; 20],
@@ -168,19 +225,49 @@ impl<'a> AnnounceRequestUDP<'a> {
     }
 }
 
-/// Represents a response sent by a tracker.
+/// Represents a UDP tracker announce response.
+///
+/// Contains the response data from a UDP tracker including peer list and interval.
 #[derive(Debug)]
 struct AnnounceResponseUDP {
-    action: u32,         //1 for announce
-    transaction_id: u32, //same as request
-    interval: u32,       //seconds between tracker requests
-    leechers: u32,       //number of leachers
-    seeders: u32,        //number of seeders
-    peers: Vec<[u8; 6]>, //list of peers received from tracker
+    /// Action field (should be 1 for announce response).
+    action: u32,
+    /// Transaction ID (matches the request).
+    transaction_id: u32,
+    /// Seconds to wait before the next announce.
+    interval: u32,
+    /// Number of leechers (peers downloading).
+    leechers: u32,
+    /// Number of seeders (peers with complete file).
+    seeders: u32,
+    /// List of peers in compact format (6 bytes each).
+    peers: Vec<[u8; 6]>,
 }
 
 impl AnnounceResponseUDP {
-    /// Deserializes response from bytes.
+    /// Deserializes a UDP announce response from bytes.
+    ///
+    /// Parses the binary UDP tracker response format:
+    /// - 4 bytes: action
+    /// - 4 bytes: transaction_id
+    /// - 4 bytes: interval
+    /// - 4 bytes: leechers
+    /// - 4 bytes: seeders
+    /// - N*6 bytes: peer list
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The raw response bytes from the tracker
+    ///
+    /// # Returns
+    ///
+    /// Returns the parsed AnnounceResponseUDP.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackerError` if:
+    /// - Response is too short (< 20 bytes)
+    /// - Peer data length is not a multiple of 6
     fn from_bytes(data: &[u8]) -> Result<Self, TrackerError> {
         if data.len() < 20 {
             return Err(TrackerError::Other("Response too short".into()));

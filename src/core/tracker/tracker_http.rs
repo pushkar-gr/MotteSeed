@@ -1,6 +1,7 @@
 //! HTTP tracker implementation.
 //!
-//! Communicates with HTTP trackers to announce and get peers.
+//! Implements the BitTorrent HTTP tracker protocol for announcing to trackers
+//! and retrieving peer lists. Supports both compact and non-compact peer formats.
 
 use crate::core::torrent_stats::TorrentStats;
 use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
@@ -24,16 +25,30 @@ use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 
-/// Manages communication with a BitTorrent tracker.
+/// HTTP tracker client implementation.
+///
+/// Manages communication with HTTP/HTTPS BitTorrent trackers, handling
+/// announce requests and peer list responses.
 #[derive(Debug)]
 pub struct TrackerHTTP<'a> {
-    request: AnnounceRequestHTTP<'a>, //request object
-    last_announce: Instant,           //time of last tracker request
-    response: AnnounceResponseHTTP,   //response by tracker
+    /// The announce request to send to the tracker.
+    request: AnnounceRequestHTTP<'a>,
+    /// Timestamp of the last announce request.
+    last_announce: Instant,
+    /// Most recent response from the tracker.
+    response: AnnounceResponseHTTP,
 }
 
 impl<'a> TrackerHTTP<'a> {
-    /// Sends a request to the tracker and processes the response.
+    /// Sends an announce request to the tracker and processes the response.
+    ///
+    /// # Returns
+    ///
+    /// Returns the bencode-encoded tracker response.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackerError` if the HTTP request fails or the response is invalid.
     async fn announce(&mut self) -> Result<Bencode, TrackerError> {
         let response = announce(&self.request).await?;
         self.last_announce = Instant::now();
@@ -74,19 +89,44 @@ impl<'a> TrackerConstructor<'a> for TrackerHTTP<'a> {
     }
 }
 
-/// Represents a request to be sent to a BitTorrent tracker.
+/// Represents an HTTP announce request to a BitTorrent tracker.
+///
+/// Contains all parameters needed to construct a valid tracker announce URL.
 #[derive(Debug)]
 struct AnnounceRequestHTTP<'a> {
-    tracker: &'a str,                 //tracker URL as str
-    url_info_hash: String,            //URL-encoded info hash
-    url_peer_id: String,              //URL-encoded peer ID
-    port: u16,                        //port number for incoming connections
-    stats: Arc<RwLock<TorrentStats>>, //bytes left to download
-    compact: bool,                    //whether to request compact peer list
+    /// Tracker URL as a string.
+    tracker: &'a str,
+    /// URL-encoded info hash (20 bytes encoded as percent-escaped string).
+    url_info_hash: String,
+    /// URL-encoded peer ID (20 bytes encoded as percent-escaped string).
+    url_peer_id: String,
+    /// Port number the client is listening on for incoming connections.
+    port: u16,
+    /// Shared torrent statistics (downloaded, uploaded, left).
+    stats: Arc<RwLock<TorrentStats>>,
+    /// Whether to request compact peer list format (binary).
+    compact: bool,
 }
 
 impl<'a> AnnounceRequestHTTP<'a> {
-    /// Creates a new tracker request.
+    /// Creates a new HTTP tracker announce request.
+    ///
+    /// # Arguments
+    ///
+    /// * `tracker` - The tracker announce URL
+    /// * `info_hash` - The 20-byte torrent info hash
+    /// * `peer_id` - The 20-byte client peer ID
+    /// * `port` - Port number for incoming connections
+    /// * `stats` - Shared torrent statistics
+    /// * `compact` - Whether to request compact peer format
+    ///
+    /// # Returns
+    ///
+    /// Returns a new AnnounceRequestHTTP instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackerError` if the tracker URL contains invalid UTF-8.
     fn new(
         tracker: &'a [u8],
         info_hash: &'a [u8; 20],
@@ -109,6 +149,17 @@ impl<'a> AnnounceRequestHTTP<'a> {
     }
 
     /// URL encodes a 20-byte value for use in tracker requests.
+    ///
+    /// Encodes bytes using percent-encoding, preserving unreserved characters
+    /// (alphanumeric, hyphen, underscore, period, tilde) as-is.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The 20-byte value to encode (info hash or peer ID)
+    ///
+    /// # Returns
+    ///
+    /// Returns the URL-encoded string.
     fn url_encode(bytes: &[u8; 20]) -> String {
         //count bytes that need encoding
         let encoded_count = bytes
@@ -142,7 +193,18 @@ impl<'a> AnnounceRequestHTTP<'a> {
         result
     }
 
-    /// Builds a complete tracker request URL with all required parameters.
+    /// Builds the complete tracker request URL with all required parameters.
+    ///
+    /// Constructs a URL with query parameters including info_hash, peer_id, port,
+    /// uploaded, downloaded, left, and compact.
+    ///
+    /// # Returns
+    ///
+    /// Returns the constructed URI for the tracker request.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TrackerError` if URI construction fails.
     async fn build_url(&'a self) -> Result<Uri, TrackerError> {
         //buffer for int to str
         let mut buffer = itoa::Buffer::new();
@@ -202,11 +264,15 @@ impl<'a> AnnounceRequestHTTP<'a> {
     }
 }
 
-/// Represents a response sent by a tracker.
+/// Represents a tracker announce response.
+///
+/// Contains the interval for the next announce and the list of peers.
 #[derive(Debug)]
 struct AnnounceResponseHTTP {
-    interval: u64,       //seconds between tracker requests
-    peers: Vec<[u8; 6]>, //list of peers received from tracker
+    /// Seconds to wait before sending the next announce request.
+    interval: u64,
+    /// List of peers in compact format (6 bytes each: 4 IP + 2 port).
+    peers: Vec<[u8; 6]>,
 }
 
 impl<'a> BencodeDecodable<'a> for AnnounceResponseHTTP {

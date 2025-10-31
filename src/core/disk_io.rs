@@ -1,6 +1,7 @@
 //! Disk I/O for torrent files.
 //!
-//! Handles reading and writing pieces to disk for single and multi-file torrents.
+//! Handles reading and writing pieces to disk for both single-file and multi-file torrents.
+//! Manages file creation, piece-to-file mapping, and concurrent access using async mutexes.
 
 use crate::core::torrent::torrent::{FileDetails, FileEntry};
 
@@ -11,22 +12,46 @@ use std::path::PathBuf;
 use thiserror::Error;
 use tokio::sync::Mutex;
 
-/// Structure to represent file system
+/// Manages disk I/O operations for torrent data.
+///
+/// This structure handles both single-file and multi-file torrents, managing file
+/// handles and coordinating piece writes/reads across potentially multiple files.
 #[derive(Debug)]
 pub struct DiskIO<'a> {
-    base_path: PathBuf,                //base path of the files
-    file_details: &'a FileDetails<'a>, //file details (single file/ multi file)
-    piece_length: u32,                 //length of each piece
-    files: Vec<Mutex<File>>,           //opened files
-    total_size: u64,                   //total size
+    /// Base directory path where torrent files are stored.
+    base_path: PathBuf,
+    /// File details indicating single or multi-file torrent structure.
+    file_details: &'a FileDetails<'a>,
+    /// Length of each piece in bytes.
+    piece_length: u32,
+    /// Opened file handles with async mutex protection for concurrent access.
+    files: Vec<Mutex<File>>,
+    /// Total size of all files in the torrent.
+    total_size: u64,
 }
 
 impl<'a> DiskIO<'a> {
-    /// Creates a new object.
+    /// Creates a new DiskIO instance.
     ///
-    /// # Error
+    /// Initializes file structure on disk, creating directories and pre-allocating
+    /// files to their expected sizes.
     ///
-    /// Returns `DiskError` if file creation fails.
+    /// # Arguments
+    ///
+    /// * `base_path` - The base directory where torrent files will be stored
+    /// * `file_details` - Single or multi-file torrent information
+    /// * `piece_length` - The length of each piece in bytes
+    ///
+    /// # Returns
+    ///
+    /// Returns a new DiskIO instance with all files opened and ready.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DiskError` if:
+    /// - Directory or file creation fails
+    /// - File path contains invalid UTF-8 (for multi-file torrents)
+    /// - File pre-allocation fails
     pub fn new(
         base_path: PathBuf,
         file_details: &'a FileDetails<'a>,
@@ -101,9 +126,23 @@ impl<'a> DiskIO<'a> {
 
     /// Writes a piece to disk.
     ///
-    /// # Error
+    /// Writes the piece data to the appropriate location in the file(s).
+    /// For multi-file torrents, the piece may span multiple files.
     ///
-    /// Returns `DiskError` if writing fails.
+    /// # Arguments
+    ///
+    /// * `piece_index` - The zero-based index of the piece to write
+    /// * `data` - The piece data to write
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful write.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DiskError` if:
+    /// - The piece index is out of bounds
+    /// - I/O error occurs during writing
     pub async fn write_piece(&self, piece_index: u32, data: &Bytes) -> Result<(), DiskError> {
         //get offset and verify
         let piece_offset = piece_index * self.piece_length;
@@ -132,11 +171,25 @@ impl<'a> DiskIO<'a> {
         Ok(())
     }
 
-    /// Writes piece multi file.
+    /// Writes a piece to multiple files.
     ///
-    /// # Error
+    /// Internal method that handles writing a piece when it spans multiple files
+    /// in a multi-file torrent. Calculates file offsets and distributes the piece
+    /// data across the appropriate files.
     ///
-    /// Returns `DiskError` if writing fails.
+    /// # Arguments
+    ///
+    /// * `piece_index` - The piece index to write
+    /// * `data` - The piece data
+    /// * `file_entries` - The list of files in the torrent
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful write.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DiskError` if the piece index is out of bounds or I/O errors occur.
     #[warn(clippy::ptr_arg)]
     async fn write_multi_file_piece(
         &self,
@@ -192,11 +245,24 @@ impl<'a> DiskIO<'a> {
         Ok(())
     }
 
-    /// Reads piece from file.
+    /// Reads a piece from disk.
     ///
-    /// # Error
+    /// Reads the piece data from the appropriate location in the file(s).
+    /// For multi-file torrents, the piece may span multiple files.
     ///
-    /// Returns `DiskError` if reading fails.
+    /// # Arguments
+    ///
+    /// * `piece_index` - The zero-based index of the piece to read
+    ///
+    /// # Returns
+    ///
+    /// Returns the piece data as Bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DiskError` if:
+    /// - The piece index is out of bounds
+    /// - I/O error occurs during reading
     pub async fn read_piece(&self, piece_index: u32) -> Result<Bytes, DiskError> {
         //get offset and verify
         let piece_offset = (piece_index * self.piece_length) as u64;
@@ -234,11 +300,25 @@ impl<'a> DiskIO<'a> {
         Ok(Bytes::from(buffer))
     }
 
-    /// Reads piece from files.
+    /// Reads a piece from multiple files.
     ///
-    /// # Error
+    /// Internal method that handles reading a piece when it spans multiple files
+    /// in a multi-file torrent. Calculates file offsets and collects the piece
+    /// data from the appropriate files.
     ///
-    /// Returns `DiskError` if reading fails.
+    /// # Arguments
+    ///
+    /// * `piece_index` - The piece index to read
+    /// * `buffer` - The buffer to read data into
+    /// * `file_entries` - The list of files in the torrent
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on successful read.
+    ///
+    /// # Errors
+    ///
+    /// Returns `DiskError` if the piece index is out of bounds or I/O errors occur.
     #[warn(clippy::ptr_arg)]
     async fn read_multi_file_piece(
         &self,
@@ -295,18 +375,22 @@ impl<'a> DiskIO<'a> {
     }
 }
 
-/// Custom error enum for disk operations.
+/// Custom error enum for disk I/O operations.
 #[derive(Error, Debug)]
 pub enum DiskError {
+    /// I/O error during file operations.
     #[error("IO error: {0}")]
     IoError(#[from] io::Error),
 
+    /// Error with file path (e.g., invalid UTF-8).
     #[error("Path Error: {0}")]
     PathError(String),
 
+    /// Invalid piece index or piece data.
     #[error("Invalid piece: {0}")]
     InvalidPiece(String),
 
+    /// Other errors that may occur during disk operations.
     #[error("Error: {0}")]
     Other(#[from] Box<dyn std::error::Error>),
 }

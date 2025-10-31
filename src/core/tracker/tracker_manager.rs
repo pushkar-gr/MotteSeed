@@ -143,11 +143,32 @@ impl<'a> TrackerManager<'a> {
     /// # use MotteSeed::core::tracker::tracker_manager::TrackerManager;
     /// # async fn example(mut manager: TrackerManager<'_>) {
     /// manager.poll_all_trackers().await;
-    /// let peers = manager.get_all_peers().await;
+    /// let peers = manager.get_all_peers_vec().await;
     /// println!("Found {} unique peers", peers.len());
     /// # }
     /// ```
-    pub async fn get_all_peers(&self) -> Vec<[u8; 6]> {
+    pub async fn get_all_peers_vec(&self) -> Vec<[u8; 6]> {
         self.peer_pool.iter().copied().collect()
+    }
+
+    /// Gets all discovered peers.
+    ///
+    /// # Returns
+    ///
+    /// Returns a reference HashSet of 6-byte peer addresses (4 bytes IP + 2 bytes port).
+    /// Each peer appears only once even if discovered by multiple trackers.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use MotteSeed::core::tracker::tracker_manager::TrackerManager;
+    /// # async fn example(mut manager: TrackerManager<'_>) {
+    /// manager.poll_all_trackers().await;
+    /// let peers = manager.get_all_peers_hash().await;
+    /// println!("Found {} unique peers", peers.len());
+    /// # }
+    /// ```
+    pub async fn get_all_peers_hash(&self) -> &HashSet<[u8; 6]> {
+        &self.peer_pool
     }
 }

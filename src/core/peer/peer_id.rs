@@ -35,6 +35,22 @@ static PEER_ID: Lazy<[u8; 20]> = Lazy::new(|| {
 });
 
 /// Gets the static peer ID.
+///
+/// Returns a reference to the globally shared peer ID that is generated once
+/// per client session.
+///
+/// # Returns
+///
+/// A reference to a 20-byte array containing the peer ID.
+///
+/// # Example
+///
+/// ```
+/// use MotteSeed::core::peer::peer_id::get_peer_id;
+///
+/// let peer_id = get_peer_id();
+/// assert_eq!(peer_id.len(), 20);
+/// ```
 pub fn get_peer_id() -> &'static [u8; 20] {
     &PEER_ID
 }

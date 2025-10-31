@@ -1,7 +1,7 @@
 //! Peer connection management.
 //!
-//! Handles establishing and maintaining TCP connections with peers, processing incoming and
-//! outgoing messages.
+//! Handles establishing and maintaining TCP connections with peers, processing incoming
+//! messages, sending outgoing messages, and managing the connection lifecycle.
 
 use crate::core::peer::{
     handshake::{HandShakeError, handshake},
@@ -19,26 +19,49 @@ use tokio::{
 };
 use tokio::{net::TcpStream, sync::mpsc};
 
-/// Represents a connection to a peer.
+/// Represents an active connection to a peer.
+///
+/// Manages the TCP stream, peer state, message processing, and communication
+/// with the peer manager through channels.
 #[derive(Debug)]
 pub struct PeerConnection {
-    peer_addr: SocketAddr, //ip address of peer
-    stream: TcpStream,     //TCP stream
-    state: PeerState,      //peer state
-    //communication channels
+    /// Socket address of the peer.
+    peer_addr: SocketAddr,
+    /// TCP stream for communication with the peer.
+    stream: TcpStream,
+    /// Current state of the peer (choking, interested, pieces, etc.).
+    state: PeerState,
+    /// Channel to send events to the peer manager.
     to_manager: mpsc::Sender<PeerEvent>,
+    /// Channel to receive commands from the peer manager.
     from_manager: mpsc::Receiver<ManagerCommand>,
-    buf: BytesMut, //buffer to read messages
+    /// Buffer for reading incoming messages.
+    buf: BytesMut,
 }
 
 impl PeerConnection {
     /// Creates a new peer connection.
     ///
-    /// Connects to the peer, performs handshake, and initializes the connection.
+    /// Establishes a TCP connection to the peer, performs the BitTorrent handshake,
+    /// and initializes the connection state.
+    ///
+    /// # Arguments
+    ///
+    /// * `ip` - 6-byte peer address (4 bytes IP + 2 bytes port in big-endian)
+    /// * `to_manager` - Channel sender to communicate events to the manager
+    /// * `from_manager` - Channel receiver for commands from the manager
+    /// * `peer_id` - Our 20-byte peer ID
+    /// * `info_hash` - The 20-byte torrent info hash
+    ///
+    /// # Returns
+    ///
+    /// Returns a new PeerConnection instance.
     ///
     /// # Errors
     ///
-    /// Returns `ConnectionError` if connection or handshake fails.
+    /// Returns `ConnectionError` if:
+    /// - TCP connection fails
+    /// - Handshake fails (invalid protocol or mismatched info hash)
     pub async fn new(
         ip: &[u8; 6],
         to_manager: mpsc::Sender<PeerEvent>,
@@ -71,6 +94,21 @@ impl PeerConnection {
     }
 
     /// Reads a message from the peer.
+    ///
+    /// Reads the 4-byte length prefix, then reads the message payload and deserializes it.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf` - Buffer to use for reading
+    /// * `stream` - TCP stream to read from
+    ///
+    /// # Returns
+    ///
+    /// Returns the deserialized Message.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConnectionError` if I/O or deserialization fails.
     async fn read_message(
         buf: &mut BytesMut,
         stream: &mut TcpStream,
@@ -260,55 +298,102 @@ impl PeerConnection {
     }
 }
 
-/// Events sent from peer to manager.
+/// Events sent from a peer connection to the manager.
+///
+/// These events represent state changes or data received from a peer.
 #[derive(Debug)]
 pub enum PeerEvent {
-    PeerChoked,              //peer choked client
-    PeerUnchoked,            //peer unchoked client
-    PeerInterested,          //peer intrested in client
-    PeerNotInterested,       //peer not intrested in client
-    ReceivedHave(u32),       //received have messages from peer
-    ReceivedBitfield(Bytes), //received bitfield from peer
+    /// Peer has choked us (stopped sending data).
+    PeerChoked,
+    /// Peer has unchoked us (ready to send data).
+    PeerUnchoked,
+    /// Peer is interested in our pieces.
+    PeerInterested,
+    /// Peer is not interested in our pieces.
+    PeerNotInterested,
+    /// Peer announced they have a specific piece.
+    ReceivedHave(u32),
+    /// Peer sent their bitfield of available pieces.
+    ReceivedBitfield(Bytes),
+    /// Peer requested a block from us.
     RequestedBlock {
+        /// Piece index.
         index: u32,
+        /// Byte offset within the piece.
         begin: u32,
+        /// Length of the block.
         length: u32,
-    }, //peer requested a block
+    },
+    /// Received a piece block from the peer.
     ReceivedPiece {
+        /// Piece index.
         index: u32,
+        /// Byte offset within the piece.
         begin: u32,
+        /// Block data.
         block: Bytes,
-    }, //received piece from peer
-    PeerDisconnected,        //peer disconnected from TCP connection
-    DownloadRate(f64),       //download rate of peer
+    },
+    /// Peer disconnected from the TCP connection.
+    PeerDisconnected,
+    /// Current download rate from this peer in bytes per second.
+    DownloadRate(f64),
 }
 
-/// Commands sent from manager to peer.
+/// Commands sent from the manager to a peer connection.
+///
+/// These commands instruct the peer connection to send specific messages.
 #[derive(Debug)]
 pub enum ManagerCommand {
+    /// Send a keep-alive message.
     KeepAlive,
-    Choke,                                                //choke peer
-    Unchoke,                                              //unchoke peer
-    Interested,                                           //client intrested in peer
-    NotInterested,                                        //client not intrested in peer
-    HavePiece(u32),                                       //client have piece
-    RequestBlock { index: u32, begin: u32, length: u32 }, //request block from peer
-    CancelBlock { index: u32, begin: u32, length: u32 },  //cancle requested block
-    Disconnect,                                           //disconnect peer connection
+    /// Choke the peer (stop sending data to them).
+    Choke,
+    /// Unchoke the peer (ready to send data to them).
+    Unchoke,
+    /// Tell the peer we're interested in their pieces.
+    Interested,
+    /// Tell the peer we're not interested in their pieces.
+    NotInterested,
+    /// Announce that we have a specific piece.
+    HavePiece(u32),
+    /// Request a block from the peer.
+    RequestBlock {
+        /// Piece index.
+        index: u32,
+        /// Byte offset within the piece.
+        begin: u32,
+        /// Length of the block to request.
+        length: u32,
+    },
+    /// Cancel a previously requested block.
+    CancelBlock {
+        /// Piece index.
+        index: u32,
+        /// Byte offset within the piece.
+        begin: u32,
+        /// Length of the block.
+        length: u32,
+    },
+    /// Disconnect from the peer.
+    Disconnect,
 }
 
-/// Errors that can occur during peer connection.
+/// Errors that can occur during peer connection operations.
 #[derive(Error, Debug)]
 pub enum ConnectionError {
+    /// I/O error during network communication.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Handshake with the peer failed.
     #[error("Handshake failed: {0}")]
     HandshakeFailed(#[from] HandShakeError),
 
+    /// Error parsing or serializing a message.
     #[error("Message error: {0}")]
     Message(#[from] MessageError),
 
+    /// Error sending an event to the manager.
     #[error("Error sending message to manager: {0}")]
     SendError(#[from] SendError<PeerEvent>),
 }

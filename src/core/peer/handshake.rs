@@ -106,5 +106,5 @@ pub enum HandShakeError {
 
     /// Other errors that may occur during handshake.
     #[error("Error: {0}")]
-    Other(#[from] Box<dyn std::error::Error>),
+    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }

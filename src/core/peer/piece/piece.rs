@@ -3,7 +3,7 @@
 //! Represents a piece of a torrent, consisting of multiple blocks, and handles
 //! piece verification using SHA-1 hashes.
 
-use crate::core::peer::piece::block::{Block, BlockState};
+use super::block::{Block, BlockState};
 
 use bytes::{BufMut, Bytes, BytesMut};
 use sha1::{Digest, Sha1};

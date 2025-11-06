@@ -2,12 +2,10 @@
 //!
 //! Defines the `BencodeDecodable` trait for parsing bencode data.
 
-use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
+use super::bencode_decodable_error::BencodeDecodableError;
 
-use bencode::Bencode;
-use bencode::util::ByteString;
-use std::borrow::Cow;
-use std::collections::BTreeMap;
+use bencode::{Bencode, util::ByteString};
+use std::{borrow::Cow, collections::BTreeMap};
 
 /// A trait for decoding Bencode data into Rust types.
 pub trait BencodeDecodable<'a>: Sized {

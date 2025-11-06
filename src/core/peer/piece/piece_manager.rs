@@ -90,10 +90,10 @@ impl<'a> PieceManager<'a> {
     /// ```
     pub fn get_next_piece_to_download(&self, available_pieces: &[u32]) -> Option<u32> {
         for piece_index in available_pieces {
-            if let Some(piece) = self.pieces.get(piece_index) {
-                if matches!(piece.state, PieceState::Missing | PieceState::Incomplete) {
-                    return Some(*piece_index);
-                }
+            if let Some(piece) = self.pieces.get(piece_index)
+                && matches!(piece.state, PieceState::Missing | PieceState::Incomplete)
+            {
+                return Some(*piece_index);
             }
         }
         None

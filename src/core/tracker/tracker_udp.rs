@@ -3,19 +3,20 @@
 //! Implements the BitTorrent UDP tracker protocol for announcing to trackers
 //! and retrieving peer lists. Uses a connection-oriented protocol over UDP.
 
+use super::{
+    tracker::{Tracker, TrackerConstructor},
+    tracker_error::TrackerError,
+};
 use crate::core::torrent_stats::TorrentStats;
-use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
-use crate::core::tracker::tracker_error::TrackerError;
 
 use async_trait::async_trait;
 use rand;
-use std::array::TryFromSliceError;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::net::UdpSocket;
-use tokio::sync::RwLock;
-use tokio::time::{Instant, timeout};
+use std::{array::TryFromSliceError, net::SocketAddr, sync::Arc, time::Duration};
+use tokio::{
+    net::UdpSocket,
+    sync::RwLock,
+    time::{Instant, timeout},
+};
 
 /// Connection timeout for UDP requests.
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(15);

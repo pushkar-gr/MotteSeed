@@ -4,7 +4,7 @@
 //! activities across all connected peers. Uses async channels for inter-task communication
 //! and spawns independent tasks for each peer connection.
 
-use crate::core::peer::peer_connection::{ManagerCommand, PeerConnection, PeerEvent};
+use super::peer_connection::{ManagerCommand, PeerConnection, PeerEvent};
 
 use bytes::Bytes;
 use std::collections::HashMap;
@@ -107,8 +107,8 @@ impl PeerManager {
     ///
     /// * `peer_ip` - 6-byte peer address (4 bytes IPv4 + 2 bytes port in big-endian)
     /// * `bitfield` - Optional bitfield indicating which pieces we have.
-    ///               If provided, this will be sent immediately after connection.
-    ///               Format: Each bit represents a piece (1 = have, 0 = don't have)
+    ///   If provided, this will be sent immediately after connection.
+    ///   Format: Each bit represents a piece (1 = have, 0 = don't have)
     ///
     /// # Behavior on Failure
     ///

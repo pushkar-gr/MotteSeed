@@ -3,11 +3,10 @@
 //! Aggregates peer information from multiple trackers, supporting both
 //! primary and backup tracker lists.
 
-use crate::core::tracker::tracker_factory::TrackerFactory;
-use crate::core::{torrent_stats::TorrentStats, tracker::tracker::Tracker};
+use super::{tracker::Tracker, tracker_factory::TrackerFactory};
+use crate::core::torrent_stats::TorrentStats;
 
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 use tokio::sync::RwLock;
 
 /// Manages multiple tracker connections for a torrent.

@@ -3,27 +3,27 @@
 //! Implements the BitTorrent HTTP tracker protocol for announcing to trackers
 //! and retrieving peer lists. Supports both compact and non-compact peer formats.
 
+use super::{
+    tracker::{Tracker, TrackerConstructor},
+    tracker_error::TrackerError,
+};
 use crate::core::torrent_stats::TorrentStats;
-use crate::core::tracker::tracker::{Tracker, TrackerConstructor};
-use crate::core::tracker::tracker_error::TrackerError;
-use crate::util::bencode::bencode_decodable::BencodeDecodable;
-use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
-use crate::util::errors::BStreamingError;
+use crate::util::{
+    bencode::{
+        bencode_decodable::BencodeDecodable, bencode_decodable_error::BencodeDecodableError,
+    },
+    errors::BStreamingError,
+};
 
 use async_trait::async_trait;
 use bencode::{Bencode, from_buffer};
-use http::uri::PathAndQuery;
-use http::{Request, Uri};
+use http::{Request, Uri, uri::PathAndQuery};
 use http_body_util::{BodyExt, Empty};
-use hyper::body::Bytes;
-use hyper::client::conn::http1::handshake;
+use hyper::{body::Bytes, client::conn::http1::handshake};
 use hyper_util::rt::TokioIo;
 use itoa;
-use std::array::TryFromSliceError;
-use std::sync::Arc;
-use std::time::Instant;
-use tokio::net::TcpStream;
-use tokio::sync::RwLock;
+use std::{array::TryFromSliceError, sync::Arc, time::Instant};
+use tokio::{net::TcpStream, sync::RwLock};
 
 /// HTTP tracker client implementation.
 ///

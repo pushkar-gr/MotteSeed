@@ -1,7 +1,8 @@
 //! Error types for torrent operations.
 
-use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
-use crate::util::errors::BStreamingError;
+use crate::util::{
+    bencode::bencode_decodable_error::BencodeDecodableError, errors::BStreamingError,
+};
 
 use thiserror::Error;
 

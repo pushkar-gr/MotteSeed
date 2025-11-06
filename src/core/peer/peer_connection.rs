@@ -3,7 +3,7 @@
 //! Handles establishing and maintaining TCP connections with peers, processing incoming
 //! messages, sending outgoing messages, and managing the connection lifecycle.
 
-use crate::core::peer::{
+use super::{
     handshake::{HandShakeError, handshake},
     message::{Message, MessageError},
     peer_state::PeerState,
@@ -14,10 +14,11 @@ use std::net::SocketAddr;
 use thiserror::Error;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
     select,
+    sync::mpsc,
     sync::mpsc::error::SendError,
 };
-use tokio::{net::TcpStream, sync::mpsc};
 
 /// Represents an active connection to a peer.
 ///

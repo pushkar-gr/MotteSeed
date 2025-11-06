@@ -3,15 +3,13 @@
 //! Provides factory methods to create the appropriate tracker implementation
 //! based on the announce URL scheme.
 
-use crate::core::{
-    torrent_stats::TorrentStats,
-    tracker::{
-        tracker::{Tracker, TrackerConstructor},
-        tracker_error::TrackerError,
-        tracker_http::TrackerHTTP,
-        tracker_udp::TrackerUDP,
-    },
+use super::{
+    tracker::{Tracker, TrackerConstructor},
+    tracker_error::TrackerError,
+    tracker_http::TrackerHTTP,
+    tracker_udp::TrackerUDP,
 };
+use crate::core::torrent_stats::TorrentStats;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;

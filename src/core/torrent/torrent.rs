@@ -2,19 +2,18 @@
 //!
 //! Defines the Torrent and related structs, with BencodeDecodable implementations.
 
-use crate::core::torrent::torrent_error::ReadTorrentError;
-use crate::util::bencode::bencode_decodable::BencodeDecodable;
-use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
-use crate::util::errors::BStreamingError;
+use super::torrent_error::ReadTorrentError;
+use crate::util::{
+    bencode::{
+        bencode_decodable::BencodeDecodable, bencode_decodable_error::BencodeDecodableError,
+    },
+    errors::BStreamingError,
+};
 
-use bencode::util::ByteString;
-use bencode::{Bencode, from_buffer};
+use bencode::{Bencode, from_buffer, util::ByteString};
 use once_cell::sync::Lazy;
 use sha1::{Digest, Sha1};
-use std::borrow::Cow;
-use std::fs;
-use std::path::Path;
-use std::rc::Rc;
+use std::{borrow::Cow, fs, path::Path, rc::Rc};
 
 /// Cached "length" key for bencode decoding optimization.
 static LENGTH_KEY: Lazy<ByteString> = Lazy::new(|| ByteString::from_str("length"));

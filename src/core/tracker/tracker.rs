@@ -2,8 +2,8 @@
 //!
 //! Defines the core traits for tracker implementations, supporting both HTTP and UDP trackers.
 
+use super::tracker_error::TrackerError;
 use crate::core::torrent_stats::TorrentStats;
-use crate::core::tracker::tracker_error::TrackerError;
 
 use async_trait::async_trait;
 use std::sync::Arc;

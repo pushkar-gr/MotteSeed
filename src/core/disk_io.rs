@@ -6,9 +6,11 @@
 use crate::core::torrent::torrent::{FileDetails, FileEntry};
 
 use bytes::Bytes;
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
+use std::{
+    fs::{self, File, OpenOptions},
+    io::{self, Read, Seek, SeekFrom, Write},
+    path::PathBuf,
+};
 use thiserror::Error;
 use tokio::sync::Mutex;
 

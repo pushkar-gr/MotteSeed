@@ -1,7 +1,8 @@
 //! Errors for tracker operations.
 
-use crate::util::bencode::bencode_decodable_error::BencodeDecodableError;
-use crate::util::errors::BStreamingError;
+use crate::util::{
+    bencode::bencode_decodable_error::BencodeDecodableError, errors::BStreamingError,
+};
 
 use http::uri::{InvalidUri, InvalidUriParts};
 use std::str::Utf8Error;

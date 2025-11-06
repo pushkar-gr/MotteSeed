@@ -38,5 +38,5 @@ async fn main() {
     )
     .await;
     tracker_manager.poll_all_trackers().await;
-    println!("{:?}", tracker_manager.get_all_peers().await);
+    println!("{:?}", tracker_manager.get_all_peers_vec().await);
 }

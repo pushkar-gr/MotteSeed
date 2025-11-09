@@ -6,6 +6,7 @@
 use super::piece::{Piece, PieceState};
 use crate::core::torrent::torrent::Torrent;
 
+use bytes::Bytes;
 use std::collections::HashMap;
 
 /// Manages all pieces for a torrent.
@@ -99,6 +100,100 @@ impl<'a> PieceManager<'a> {
         None
     }
 
+    /// Selects the next block to download for a piece.
+    ///
+    /// Returns the next missing block for the piece as an (offset, length) pair.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece_index` - Index of the piece to select a block from.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some((offset, block_length))` where `offset` is the byte offset of
+    /// the block within the piece and `block_length` is the size of that block in bytes.
+    /// Returns `None` if all blocks for the piece are already requested/received.
+    pub fn get_next_block_for_piece(&self, piece_index: u32) -> Option<(u64, u32)> {
+        if let Some(piece) = self.pieces.get(&piece_index) {
+            if let Some(offset) = piece.get_next_missing_block() {
+                if let Some(block) = piece.blocks.get(&offset) {
+                    return Some((offset, block.length));
+                }
+            }
+        }
+        None
+    }
+
+    /// Marks a block as requested from a peer.
+    ///
+    /// Records that the block at `offset` for `piece_index` has been requested
+    /// from `peer_ip`.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece_index` - Piece index containing the block.
+    /// * `offset` - Byte offset of the block within the piece.
+    /// * `peer_ip` - 6-byte peer identifier (4 bytes IP + 2 bytes port).
+    pub fn request_block(&mut self, piece_index: u32, offset: u64, peer_ip: [u8; 6]) {
+        if let Some(piece) = self.pieces.get_mut(&piece_index) {
+            piece.request_from_peer(offset, &peer_ip);
+        }
+    }
+
+    /// Inserts a received block into a piece.
+    ///
+    /// Stores the block data and triggers piece verification if the piece becomes fully downloaded.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece_index` - Index of the piece receiving the block.
+    /// * `offset` - Byte offset of the block within the piece.
+    /// * `data` - The block data bytes.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the block was accepted and stored (offset was valid).
+    /// Returns `false` if the offset was invalid or the piece does not exist.
+    pub fn receive_block(&mut self, piece_index: u32, offset: u64, data: Bytes) -> bool {
+        if let Some(piece) = self.pieces.get_mut(&piece_index) {
+            piece.receive_block(offset, data);
+            piece.is_complete()
+        } else {
+            false
+        }
+    }
+
+    /// Marks the piece as written to disk.
+    ///
+    /// Updates the piece state to Written after a successful disk write.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece_index` - Index of the piece that was written.
+    pub fn mark_piece_written(&mut self, piece_index: u32) {
+        if let Some(piece) = self.pieces.get_mut(&piece_index) {
+            piece.mask_written();
+        }
+    }
+
+    /// Retrieves verified piece data to be written to disk.
+    ///
+    /// # Arguments
+    ///
+    /// * `piece_index` - Index of the piece to retrieve data for.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(Bytes)` containing the full piece data if the piece is in
+    /// Complete state (verified). Returns `None` otherwise.
+    pub fn get_piece_data(&mut self, piece_index: u32) -> Option<Bytes> {
+        if let Some(piece) = self.pieces.get(&piece_index) {
+            piece.get_piece_data()
+        } else {
+            None
+        }
+    }
+
     /// Returns a list of completed piece indices.
     ///
     /// Collects all pieces that have been fully downloaded and verified.
@@ -126,5 +221,14 @@ impl<'a> PieceManager<'a> {
                 }
             })
             .collect()
+    }
+
+    /// Returns whether downloading all pieces is complete.
+    ///
+    /// # Returns
+    ///
+    /// `true` if all pieces are in Complete or Written state, otherwise `false`.
+    pub fn is_download_complete(&self) -> bool {
+        self.pieces.values().all(|piece| piece.is_complete())
     }
 }

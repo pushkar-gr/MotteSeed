@@ -1,4 +1,4 @@
-//! Piece structure and management.
+//! Piece structure and management.piece.rs
 //!
 //! Represents a piece of a torrent, consisting of multiple blocks, and handles
 //! piece verification using SHA-1 hashes.
@@ -22,7 +22,7 @@ pub struct Piece<'a> {
     /// Expected SHA-1 hash of the complete piece data.
     pub hash: &'a [u8; 20],
     /// Map of block offset to Block, containing all blocks in this piece.
-    pub blocks: HashMap<u64, Block<'a>>,
+    pub blocks: HashMap<u64, Block>,
     /// Current state of the piece.
     pub state: PieceState,
     /// Size of each block in bytes (except possibly the last block).
@@ -75,7 +75,7 @@ impl<'a> Piece<'a> {
     ///
     /// * `offset` - The byte offset of the block within the piece
     /// * `peer_ip` - The peer from which the block is being requested
-    pub fn request_from_peer(&mut self, offset: u64, peer_ip: &'a [u8; 6]) {
+    pub fn request_from_peer(&mut self, offset: u64, peer_ip: [u8; 6]) {
         if let Some(block) = self.blocks.get_mut(&offset) {
             block.request_from_peer(peer_ip);
         }
@@ -193,7 +193,7 @@ impl<'a> Piece<'a> {
     /// # Returns
     ///
     /// Returns a map of block offsets to peer IPs for requests that timed out.
-    pub fn reset_timeout_requests(&mut self) -> HashMap<u64, &'a [u8; 6]> {
+    pub fn reset_timeout_requests(&mut self) -> HashMap<u64, [u8; 6]> {
         let mut reset_ip = HashMap::new();
 
         for (offset, block) in &mut self.blocks {
@@ -229,7 +229,7 @@ impl<'a> Piece<'a> {
             while offset < self.length {
                 if let Some(block) = self.blocks.get(&offset) {
                     if let BlockState::Received(bytes) = &block.state {
-                        data.extend_from_slice(bytes);
+                        data.extend_from_slice(&bytes);
                         offset += block.length as u64;
                     } else {
                         return None;

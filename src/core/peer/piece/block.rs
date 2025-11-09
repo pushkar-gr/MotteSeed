@@ -36,7 +36,7 @@ impl<'a> Block<'a> {
     ///
     /// # Returns
     ///
-    /// Returns a new Block instance.
+    /// A newly initialized Block in Missing state.
     pub fn new(index: u32, offset: u64, length: u32) -> Self {
         Self {
             index,
@@ -75,7 +75,8 @@ impl<'a> Block<'a> {
     ///
     /// # Returns
     ///
-    /// Returns `Some(peer_ip)` if the request timed out, `None` otherwise.
+    /// Returns `Some(peer_ip)` if the request timed out and was cancelled,
+    /// otherwise `None`.
     pub fn reset(&mut self) -> Option<&'a [u8; 6]> {
         if let BlockState::Requested { peer_ip, instant } = self.state
             && instant.elapsed() > Self::TIMEOUT

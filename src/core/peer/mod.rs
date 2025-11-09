@@ -2,6 +2,7 @@
 //!
 //! Handles peer connections, handshake, message exchange, and peer state management.
 
+pub mod download_manager;
 pub mod handshake;
 pub mod message;
 pub mod peer_connection;

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 /// Blocks are typically 16 KiB in size (except possibly the last block in a piece).
 /// Each block tracks its download state and the peer from which it was requested.
 #[derive(Debug)]
-pub struct Block<'a> {
+pub struct Block {
     /// Index of the piece this block belongs to.
     pub index: u32,
     /// Byte offset of this block within the piece.
@@ -19,10 +19,10 @@ pub struct Block<'a> {
     /// Length of the block data in bytes.
     pub length: u32,
     /// Current state of the block.
-    pub state: BlockState<'a>,
+    pub state: BlockState,
 }
 
-impl<'a> Block<'a> {
+impl Block {
     /// Timeout duration for block requests (2 minutes).
     const TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -53,7 +53,7 @@ impl<'a> Block<'a> {
     /// # Arguments
     ///
     /// * `peer_ip` - The 6-byte peer address (4 bytes IP + 2 bytes port)
-    pub fn request_from_peer(&mut self, peer_ip: &'a [u8; 6]) {
+    pub fn request_from_peer(&mut self, peer_ip: [u8; 6]) {
         self.state = BlockState::Requested {
             peer_ip,
             instant: Instant::now(),
@@ -77,7 +77,7 @@ impl<'a> Block<'a> {
     ///
     /// Returns `Some(peer_ip)` if the request timed out and was cancelled,
     /// otherwise `None`.
-    pub fn reset(&mut self) -> Option<&'a [u8; 6]> {
+    pub fn reset(&mut self) -> Option<[u8; 6]> {
         if let BlockState::Requested { peer_ip, instant } = self.state
             && instant.elapsed() > Self::TIMEOUT
         {
@@ -120,13 +120,13 @@ impl<'a> Block<'a> {
 
 /// Represents the state of a block.
 #[derive(Debug)]
-pub enum BlockState<'a> {
+pub enum BlockState {
     /// Block needs to be downloaded.
     Missing,
     /// Block has been requested from a peer.
     Requested {
         /// The peer from which the block was requested.
-        peer_ip: &'a [u8; 6],
+        peer_ip: [u8; 6],
         /// When the request was sent.
         instant: Instant,
     },

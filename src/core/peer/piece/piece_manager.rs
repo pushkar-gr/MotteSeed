@@ -136,7 +136,7 @@ impl<'a> PieceManager<'a> {
     /// * `peer_ip` - 6-byte peer identifier (4 bytes IP + 2 bytes port).
     pub fn request_block(&mut self, piece_index: u32, offset: u64, peer_ip: [u8; 6]) {
         if let Some(piece) = self.pieces.get_mut(&piece_index) {
-            piece.request_from_peer(offset, &peer_ip);
+            piece.request_from_peer(offset, peer_ip);
         }
     }
 

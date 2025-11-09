@@ -29,7 +29,7 @@ use tokio::sync::mpsc;
 #[derive(Debug)]
 pub struct DownloadManager<'a> {
     /// In-memory piece state and selection logic.
-    piece_manager: PieceManager<'a>,
+    pub piece_manager: PieceManager<'a>,
 
     /// Registered peers mapped to their manager command sender and the
     /// last-seen bitfield (if any).
